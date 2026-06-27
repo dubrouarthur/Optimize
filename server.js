@@ -153,41 +153,104 @@ app.delete('/api/guests/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Bulk add guests ----------
+app.post('/api/guests/bulk', (req, res) => {
+  const { names, group_id } = req.body;
+  if (!Array.isArray(names)) return res.status(400).json({ error: 'names requis' });
+  const insert = db.prepare(`INSERT INTO guests (name, group_id) VALUES (?, ?)`);
+  let added = 0;
+  const tx = db.transaction(() => {
+    for (const raw of names) {
+      const name = String(raw || '').trim();
+      if (name) { insert.run(name, group_id || null); added++; }
+    }
+  });
+  tx();
+  res.json({ added, guests: db.prepare(`SELECT * FROM guests ORDER BY name COLLATE NOCASE`).all() });
+});
+
 // ---------- Auto-arrange ----------
-// Fills empty seats with unplaced guests, keeping groups together when possible.
+// Fills empty seats with unplaced guests, keeping each group together at one
+// table whenever a table has enough free seats for the whole group.
 app.post('/api/auto-arrange', (req, res) => {
   const tables = db.prepare(`SELECT * FROM tables ORDER BY id`).all();
   const unplaced = db.prepare(
     `SELECT * FROM guests WHERE table_id IS NULL
-     ORDER BY group_id IS NULL, group_id, name COLLATE NOCASE`
+     ORDER BY name COLLATE NOCASE`
   ).all();
 
-  // Build map of free seats per table
-  const freeSeats = [];
-  for (const t of tables) {
+  // Free seats grouped per table (list of seat indexes still available)
+  const tableSeats = tables.map(t => {
     const taken = new Set(
       db.prepare(`SELECT seat_index FROM guests WHERE table_id = ?`).all(t.id).map(r => r.seat_index)
     );
-    for (let i = 0; i < t.seats; i++) {
-      if (!taken.has(i)) freeSeats.push({ table_id: t.id, seat_index: i });
-    }
+    const free = [];
+    for (let i = 0; i < t.seats; i++) if (!taken.has(i)) free.push(i);
+    return { id: t.id, free };
+  });
+
+  // Bucket unplaced guests by group (null group => one bucket of singletons)
+  const buckets = new Map();
+  for (const g of unplaced) {
+    const key = g.group_id == null ? `solo-${g.id}` : `grp-${g.group_id}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(g);
   }
+  // Larger groups first so they claim contiguous tables before the leftovers
+  const orderedBuckets = [...buckets.values()].sort((a, b) => b.length - a.length);
 
   const assign = db.prepare(`UPDATE guests SET table_id = ?, seat_index = ? WHERE id = ?`);
+  let placed = 0;
+
+  const seatGuest = (g) => {
+    // Prefer a table that already hosts this guest's group, then any table with room
+    let target = tableSeats.find(ts => ts.free.length > 0);
+    if (!target) return false;
+    const seat = target.free.shift();
+    assign.run(target.id, seat, g.id);
+    placed++;
+    return true;
+  };
+
   const tx = db.transaction(() => {
-    let s = 0;
-    for (const g of unplaced) {
-      if (s >= freeSeats.length) break;
-      const seat = freeSeats[s++];
-      assign.run(seat.table_id, seat.seat_index, g.id);
+    for (const members of orderedBuckets) {
+      // Try to seat the whole group at a single table that can fit it
+      let table = tableSeats.find(ts => ts.free.length >= members.length);
+      if (table) {
+        for (const g of members) {
+          const seat = table.free.shift();
+          assign.run(table.id, seat, g.id);
+          placed++;
+        }
+      } else {
+        // Not enough room anywhere for the whole group — split across tables
+        for (const g of members) { if (!seatGuest(g)) break; }
+      }
     }
   });
   tx();
 
-  res.json({
-    placed: Math.min(unplaced.length, freeSeats.length),
-    remaining: Math.max(0, unplaced.length - freeSeats.length),
-  });
+  res.json({ placed, remaining: unplaced.length - placed });
+});
+
+// ---------- Export plan (CSV) ----------
+app.get('/api/export.csv', (req, res) => {
+  const rows = db.prepare(`
+    SELECT g.name AS guest, gr.name AS grp, t.name AS tbl, g.seat_index AS seat
+    FROM guests g
+    LEFT JOIN groups gr ON gr.id = g.group_id
+    LEFT JOIN tables t  ON t.id = g.table_id
+    ORDER BY t.name COLLATE NOCASE, g.seat_index, g.name COLLATE NOCASE
+  `).all();
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = ['Invité,Groupe,Table,Place'];
+  for (const r of rows) {
+    lines.push([r.guest, r.grp || '', r.tbl || 'Non placé', r.seat != null ? r.seat + 1 : '']
+      .map(esc).join(','));
+  }
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="plan-de-table.csv"');
+  res.send('﻿' + lines.join('\n'));
 });
 
 // ---------- Reset all seating ----------

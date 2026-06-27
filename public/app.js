@@ -13,6 +13,8 @@ const api = {
 
 let state = { settings: {}, groups: [], tables: [], guests: [] };
 let searchTerm = '';
+let filterGroup = 'all';        // 'all' | 'none' | <group id>
+let selectedGuestId = null;     // click-to-place selection
 
 const $ = (s, el = document) => el.querySelector(s);
 const groupById = (id) => state.groups.find(g => g.id === id);
@@ -38,6 +40,7 @@ async function load() {
 
 function renderAll() {
   renderGroupSelect();
+  renderPoolFilter();
   renderPool();
   renderGroups();
   renderBoard();
@@ -58,11 +61,30 @@ function renderStats() {
 
 // ---------- Group select ----------
 function renderGroupSelect() {
-  const sel = $('#guestGroup');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">Sans groupe</option>' +
+  const opts = '<option value="">Sans groupe</option>' +
     state.groups.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join('');
-  if (cur) sel.value = cur;
+  for (const id of ['#guestGroup', '#importGroup']) {
+    const sel = $(id);
+    if (!sel) continue;
+    const cur = sel.value;
+    sel.innerHTML = opts;
+    if (cur) sel.value = cur;
+  }
+}
+
+// ---------- Pool filter chips ----------
+function renderPoolFilter() {
+  const el = $('#poolFilter');
+  const chip = (key, label, color) =>
+    `<button class="filter-chip ${filterGroup == key ? 'active' : ''}" data-f="${key}">
+       ${color ? `<span class="dot" style="background:${color}"></span>` : ''}${esc(label)}
+     </button>`;
+  let html = chip('all', 'Tous');
+  for (const g of state.groups) html += chip(String(g.id), g.name, g.color);
+  html += chip('none', 'Sans groupe');
+  el.innerHTML = html;
+  el.querySelectorAll('.filter-chip').forEach(b =>
+    b.addEventListener('click', () => { filterGroup = b.dataset.f; renderPoolFilter(); renderPool(); }));
 }
 
 // ---------- Pool (unplaced guests) ----------
@@ -71,11 +93,13 @@ function renderPool() {
   let list = state.guests.filter(g => g.table_id == null);
   const term = searchTerm.toLowerCase();
   if (term) list = list.filter(g => g.name.toLowerCase().includes(term));
+  if (filterGroup === 'none') list = list.filter(g => g.group_id == null);
+  else if (filterGroup !== 'all') list = list.filter(g => String(g.group_id) === filterGroup);
 
   $('#unplacedCount').textContent = state.guests.filter(g => g.table_id == null).length;
 
   if (!list.length) {
-    pool.innerHTML = `<div class="empty-hint">${term ? 'Aucun résultat.' : 'Tous les invités sont placés 🎉'}</div>`;
+    pool.innerHTML = `<div class="empty-hint">${term || filterGroup !== 'all' ? 'Aucun invité ici.' : 'Tous les invités sont placés 🎉'}</div>`;
     return;
   }
   pool.innerHTML = list.map(g => chipHTML(g)).join('');
@@ -85,7 +109,8 @@ function renderPool() {
 function chipHTML(g) {
   const grp = groupById(g.group_id);
   const color = grp ? grp.color : '#d9d2c5';
-  return `<div class="chip" draggable="true" data-id="${g.id}">
+  const sel = g.id === selectedGuestId ? ' selected' : '';
+  return `<div class="chip${sel}" draggable="true" data-id="${g.id}" title="Cliquer puis cliquer une chaise pour placer">
       <span class="dot" style="background:${color}"></span>
       <span class="name">${esc(g.name)}</span>
       <span class="del" data-del="${g.id}" title="Supprimer">×</span>
@@ -99,13 +124,25 @@ function bindChip(el) {
     el.classList.add('dragging');
   });
   el.addEventListener('dragend', () => el.classList.remove('dragging'));
+  el.addEventListener('click', e => {
+    if (e.target.closest('.del')) return;
+    selectGuest(id === selectedGuestId ? null : id);
+  });
   const del = el.querySelector('.del');
   if (del) del.addEventListener('click', async (e) => {
     e.stopPropagation();
     await api.send('DELETE', `/api/guests/${id}`);
     state.guests = state.guests.filter(g => g.id !== id);
+    if (selectedGuestId === id) selectedGuestId = null;
     renderAll();
   });
+}
+
+// ---------- Click-to-place ----------
+function selectGuest(id) {
+  selectedGuestId = id;
+  document.body.classList.toggle('placing', id != null);
+  renderPool();
 }
 
 // Pool as a drop target → unseat
@@ -173,6 +210,13 @@ $('#addGroup').addEventListener('click', async () => {
 function renderBoard() {
   const board = $('#board');
   board.innerHTML = '';
+  if (!state.tables.length) {
+    board.innerHTML = `<div class="board-empty">
+      <div class="board-empty-ring">◯</div>
+      <p>Aucune table pour l'instant.<br>Ajoutez une table ronde ou rectangle ci-dessus pour commencer.</p>
+    </div>`;
+    return;
+  }
   for (const t of state.tables) board.appendChild(buildTable(t));
 }
 
@@ -214,6 +258,7 @@ function buildTable(t) {
       seat.addEventListener('click', () => unseat(occupant.id));
     } else {
       seat.innerHTML = `<span class="seat-name">${i + 1}</span>`;
+      seat.addEventListener('click', () => placeSelectedOn(t.id, i));
     }
     bindSeatDrop(seat, t.id, i);
     wrap.appendChild(seat);
@@ -291,6 +336,14 @@ function bindSeatDrop(seat, tableId, seatIndex) {
     await api.send('PATCH', `/api/guests/${id}`, { table_id: tableId, seat_index: seatIndex });
     await load();
   });
+}
+
+async function placeSelectedOn(tableId, seatIndex) {
+  if (selectedGuestId == null) return;
+  const id = selectedGuestId;
+  selectGuest(null);
+  await api.send('PATCH', `/api/guests/${id}`, { table_id: tableId, seat_index: seatIndex });
+  await load();
 }
 
 async function updateTable(id, patch) {
@@ -384,6 +437,31 @@ $('#unseatAll').addEventListener('click', async () => {
 });
 
 $('#printBtn').addEventListener('click', () => window.print());
+$('#exportBtn').addEventListener('click', () => { window.location.href = '/api/export.csv'; });
+
+// ---------- Import modal ----------
+const modal = $('#importModal');
+$('#importBtn').addEventListener('click', () => {
+  $('#importText').value = '';
+  modal.hidden = false;
+  $('#importText').focus();
+});
+modal.addEventListener('click', e => {
+  if (e.target === modal || e.target.hasAttribute('data-close')) modal.hidden = true;
+});
+$('#importConfirm').addEventListener('click', async () => {
+  const names = $('#importText').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!names.length) { modal.hidden = true; return; }
+  const group_id = $('#importGroup').value || null;
+  const r = await api.send('POST', '/api/guests/bulk', { names, group_id });
+  state.guests = r.guests;
+  modal.hidden = true;
+  renderAll();
+  toast(`${r.added} invité(s) ajouté(s)`);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if (!modal.hidden) modal.hidden = true; if (selectedGuestId != null) selectGuest(null); }
+});
 
 // ---------- Settings ----------
 const saveSettings = debounce(async () => {

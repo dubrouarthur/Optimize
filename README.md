@@ -9,13 +9,18 @@ visualisez la salle en un coup d'œil.
 ## Fonctionnalités
 
 - **Inscription des invités** en un clic, avec groupes colorés (famille, amis, collègues…).
+- **Import en masse** : collez une liste de noms (un par ligne) pour ajouter tout le monde d'un coup.
 - **Tables visuelles** rondes ou rectangulaires, avec chaises tout autour.
-- **Glisser-déposer** : placez un invité sur une chaise, déplacez-le, échangez deux places.
+- **Deux façons de placer** :
+  - **Glisser-déposer** un invité sur une chaise (placer, déplacer, échanger) ;
+  - **Clic-pour-placer** (idéal tactile/mobile) : on clique un invité, puis une chaise.
 - **Plan de salle** : déplacez les tables où vous voulez sur le plan.
-- **Placement automatique** (✨) : remplit les places libres en gardant les groupes ensemble.
+- **Placement automatique** (✨) intelligent : remplit les places libres en gardant
+  chaque groupe **à la même table** quand c'est possible.
+- **Filtre par groupe** et **recherche** instantanée dans la liste des invités.
 - **Compteurs en direct** : invités placés, tables, places libres.
-- **Recherche** instantanée d'un invité.
-- **Impression / export PDF** d'un beau plan de table prêt à afficher.
+- **Export CSV/Excel** (⬇️) et **impression / export PDF** d'un beau plan prêt à afficher.
+- **Responsive** : utilisable sur ordinateur, tablette et mobile.
 - **Sauvegarde automatique** dans une base de données **SQLite locale** (fichier `data.sqlite`).
   Tout reste sur votre machine, fonctionne hors-ligne.
 
@@ -35,12 +40,15 @@ Puis ouvrez **http://localhost:3000**.
 | Action | Geste |
 | --- | --- |
 | Ajouter un invité | Saisir le nom + (groupe) → **Ajouter** |
+| Importer une liste | **⊕ Importer une liste** → coller les noms (un par ligne) |
 | Créer une table | **⊕ Table ronde / rectangle** dans la barre du plan |
-| Placer un invité | Glisser sa pastille depuis « À placer » vers une chaise |
+| Placer un invité (souris) | Glisser sa pastille depuis « À placer » vers une chaise |
+| Placer un invité (tactile) | Cliquer l'invité (il s'illumine) puis cliquer une chaise |
 | Déplacer / échanger | Glisser un invité d'une chaise à une autre |
 | Libérer une place | Clic sur l'invité assis (ou le glisser vers « À placer ») |
 | Renommer / +/- places / forme | Survoler une table → outils sous la table |
 | Déplacer une table | Glisser le disque de la table sur le plan |
+| Exporter | **⬇️ Export** (CSV/Excel) ou **🖨️ Imprimer** (PDF) |
 
 ## Pile technique
 

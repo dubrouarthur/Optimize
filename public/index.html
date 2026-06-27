@@ -22,6 +22,7 @@
     <div class="stats" id="stats"></div>
     <div class="actions">
       <button id="autoBtn" class="btn ghost" title="Remplir les places libres automatiquement">✨ Placer auto</button>
+      <button id="exportBtn" class="btn ghost" title="Télécharger le plan (CSV / Excel)">⬇️ Export</button>
       <button id="printBtn" class="btn ghost" title="Imprimer / Exporter en PDF">🖨️ Imprimer</button>
     </div>
   </header>
@@ -37,6 +38,7 @@
         </form>
         <div class="search-row">
           <input id="search" class="search" placeholder="🔍 Rechercher…" autocomplete="off" />
+          <button id="importBtn" class="link-btn" title="Coller une liste de noms">⊕ Importer une liste</button>
         </div>
       </div>
 
@@ -44,6 +46,7 @@
         <h2>À placer <span id="unplacedCount" class="pill"></span></h2>
         <button id="unseatAll" class="link-btn" title="Tout dé-placer">tout libérer</button>
       </div>
+      <div id="poolFilter" class="pool-filter"></div>
       <div id="pool" class="pool"></div>
 
       <div class="groups-head">
@@ -63,6 +66,22 @@
       <div id="board" class="board"></div>
     </section>
   </main>
+
+  <!-- Import modal -->
+  <div id="importModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <h2>Importer une liste d'invités</h2>
+      <p class="modal-hint">Un nom par ligne. Vous pourrez les répartir dans les groupes ensuite.</p>
+      <textarea id="importText" placeholder="Marie Dupont&#10;Jean Martin&#10;Sophie Leroy&#10;…"></textarea>
+      <label class="modal-row">Groupe&nbsp;:
+        <select id="importGroup" class="group-select"></select>
+      </label>
+      <div class="modal-actions">
+        <button class="btn ghost" data-close>Annuler</button>
+        <button class="btn primary" id="importConfirm">Ajouter</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Toast -->
   <div id="toast" class="toast"></div>
