@@ -1,9 +1,27 @@
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, isAbsolute } from 'path';
+import { mkdirSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const db = new Database(join(__dirname, 'data.sqlite'));
+
+// Database location is configurable so it can point at a persistent volume in
+// production (e.g. Railway). Set SQLITE_PATH to an absolute file path, or
+// DATA_DIR to a directory (the file is created as <DATA_DIR>/data.sqlite).
+// Defaults to ./data.sqlite next to the source for local development.
+function resolveDbPath() {
+  if (process.env.SQLITE_PATH) {
+    const p = process.env.SQLITE_PATH;
+    return isAbsolute(p) ? p : join(__dirname, p);
+  }
+  const dir = process.env.DATA_DIR
+    ? (isAbsolute(process.env.DATA_DIR) ? process.env.DATA_DIR : join(__dirname, process.env.DATA_DIR))
+    : __dirname;
+  mkdirSync(dir, { recursive: true });
+  return join(dir, 'data.sqlite');
+}
+
+const db = new Database(resolveDbPath());
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');

@@ -35,6 +35,23 @@ Puis ouvrez **http://localhost:3000**.
 
 > Pour développer avec rechargement auto : `npm run dev`.
 
+## Déploiement (Railway, etc.)
+
+L'app démarre avec `npm start` et écoute sur le port fourni par `process.env.PORT`
+(3000 par défaut) — aucune configuration spéciale n'est requise.
+
+> ⚠️ **Persistance des données.** Sur les hébergeurs au système de fichiers
+> éphémère (Railway, Render…), le fichier `data.sqlite` est effacé à chaque
+> redéploiement. Pour conserver le plan de table, montez un **volume persistant**
+> et pointez la base dessus via une variable d'environnement :
+>
+> | Variable | Effet |
+> | --- | --- |
+> | `DATA_DIR` | Dossier où créer `data.sqlite` (ex. le point de montage du volume, `/data`) |
+> | `SQLITE_PATH` | Chemin complet du fichier de base (prioritaire sur `DATA_DIR`) |
+>
+> Exemple Railway : ajouter un volume monté sur `/data`, puis définir `DATA_DIR=/data`.
+
 ## Comment ça marche
 
 | Action | Geste |
