@@ -1,0 +1,16 @@
+{
+  "name": "plan-de-table",
+  "version": "1.0.0",
+  "description": "Plan de table de mariage — simple, beau, intuitif. Base de données SQLite locale.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.21.2"
+  }
+}

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plan de table</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="ring">💍</span>
+      <div class="titles">
+        <input id="eventTitle" class="event-title" placeholder="Notre mariage" />
+        <input id="eventDate" class="event-date" placeholder="Ajouter une date…" />
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="actions">
+      <button id="autoBtn" class="btn ghost" title="Remplir les places libres automatiquement">✨ Placer auto</button>
+      <button id="printBtn" class="btn ghost" title="Imprimer / Exporter en PDF">🖨️ Imprimer</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Sidebar : guests -->
+    <aside class="sidebar">
+      <div class="panel">
+        <form id="guestForm" class="guest-form">
+          <input id="guestName" placeholder="Nom de l'invité…" autocomplete="off" />
+          <select id="guestGroup" class="group-select"></select>
+          <button class="btn primary" type="submit">Ajouter</button>
+        </form>
+        <div class="search-row">
+          <input id="search" class="search" placeholder="🔍 Rechercher…" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="pool-head">
+        <h2>À placer <span id="unplacedCount" class="pill"></span></h2>
+        <button id="unseatAll" class="link-btn" title="Tout dé-placer">tout libérer</button>
+      </div>
+      <div id="pool" class="pool"></div>
+
+      <div class="groups-head">
+        <h2>Groupes</h2>
+        <button id="addGroup" class="link-btn">+ groupe</button>
+      </div>
+      <div id="groupList" class="group-list"></div>
+    </aside>
+
+    <!-- Board : tables -->
+    <section class="board-wrap">
+      <div class="board-toolbar">
+        <button class="btn" data-add="round">⊕ Table ronde</button>
+        <button class="btn" data-add="rect">⊕ Table rectangle</button>
+        <span class="hint">Glissez les invités sur les chaises · déplacez les tables sur le plan</span>
+      </div>
+      <div id="board" class="board"></div>
+    </section>
+  </main>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
