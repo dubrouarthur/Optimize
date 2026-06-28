@@ -38,8 +38,11 @@ visualisez la salle en un coup d'œil.
 - **Export CSV/Excel** (⬇️) — avec colonnes Régime/Allergies et Notes.
 - **Export PDF** (📄) soigné : page de garde, **plan visuel des tables**, répartition par table,
   index alphabétique des invités → table, et **récapitulatif des régimes & allergies** (pour le traiteur).
-- **Responsive** : utilisable sur ordinateur, tablette et mobile.
-- **Sauvegarde automatique** dans une base de données **SQLite locale** (fichier `data.sqlite`).
+- **Mobile-first** : sur téléphone, deux onglets en bas de l'écran (**👥 Invités** / **🪑 Plan
+  de table**) ; sur ordinateur, la liste et le plan s'affichent côte à côte.
+- **Tout réinitialiser** (🗑️) avec **double vérification** (case à cocher + confirmation finale)
+  pour repartir de zéro sans risque.
+- **Sauvegarde automatique** dans une base de données **SQLite locale**.
   Tout reste sur votre machine, fonctionne hors-ligne.
 
 ## Démarrage
@@ -60,15 +63,22 @@ L'app démarre avec `npm start` et écoute sur le port fourni par `process.env.P
 
 > ⚠️ **Persistance des données.** Sur les hébergeurs au système de fichiers
 > éphémère (Railway, Render…), le fichier `data.sqlite` est effacé à chaque
-> redéploiement. Pour conserver le plan de table, montez un **volume persistant**
-> et pointez la base dessus via une variable d'environnement :
+> redéploiement **sauf** s'il est stocké sur un **volume persistant**.
+>
+> **Le plus simple (Railway) :** ajoutez un **volume** monté sur **`/data`**.
+> C'est tout — l'app détecte automatiquement `/data` s'il est accessible en
+> écriture et y range la base. Aucune variable d'environnement à définir.
+>
+> Pour un autre point de montage, utilisez une variable :
 >
 > | Variable | Effet |
 > | --- | --- |
-> | `DATA_DIR` | Dossier où créer `data.sqlite` (ex. le point de montage du volume, `/data`) |
+> | `DATA_DIR` | Dossier où créer `data.sqlite` (ex. le point de montage du volume) |
 > | `SQLITE_PATH` | Chemin complet du fichier de base (prioritaire sur `DATA_DIR`) |
 >
-> Exemple Railway : ajouter un volume monté sur `/data`, puis définir `DATA_DIR=/data`.
+> 💡 En complément, le bouton **💾 Sauvegarder** exporte tout le plan dans un
+> fichier `.json` que vous pouvez restaurer à tout moment — une sauvegarde
+> manuelle qui ne dépend d'aucun hébergeur.
 
 ## Comment ça marche
 
@@ -81,7 +91,8 @@ L'app démarre avec `npm start` et écoute sur le port fourni par `process.env.P
 | Placer un invité (souris) | Glisser sa pastille depuis « À placer » vers une chaise |
 | Placer un invité (tactile) | Cliquer l'invité (il s'illumine) puis cliquer une chaise |
 | Déplacer / échanger | Glisser un invité d'une chaise à une autre |
-| Libérer une place | Clic sur l'invité assis (ou le glisser vers « À placer ») |
+| Modifier un invité assis | Cliquer la personne sur sa chaise → sa fiche s'ouvre |
+| Retirer un invité d'une table | Survoler sa chaise → bouton **×** (ou le glisser vers « À placer ») |
 | Modifier un invité (régime, etc.) | Survoler sa pastille → **✎** → nom, groupe, régime/allergies, notes |
 | Importer un fichier Excel/CSV | **⊕ Importer une liste** → choisir le fichier → associer les colonnes → Importer |
 | Modifier une table | **Cliquer la table** → panneau (nom, places, forme, arrière-plan, suppression) |
@@ -89,6 +100,8 @@ L'app démarre avec `npm start` et écoute sur le port fourni par `process.env.P
 | Changer la couleur de table | Dans le panneau : choisir une pastille d'« Arrière-plan » |
 | Sauvegarder / restaurer | **💾 Sauvegarder** (fichier .json) · restaurer via « Importer » |
 | Exporter | **⬇️ CSV** (Excel) ou **📄 PDF** |
+| Tout réinitialiser | **🗑️ Réinitialiser** → cocher la confirmation → confirmer |
+| Naviguer sur mobile | Onglets du bas : **👥 Invités** / **🪑 Plan de table** |
 
 ## Pile technique
 

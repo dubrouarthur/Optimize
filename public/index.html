@@ -26,6 +26,7 @@
       <button id="saveBtn" class="btn ghost" title="Sauvegarder tout le plan (fichier .json à recharger plus tard)">💾 Sauvegarder</button>
       <button id="exportBtn" class="btn ghost" title="Télécharger le plan (CSV / Excel)">⬇️ CSV</button>
       <button id="pdfBtn" class="btn ghost" title="Générer un PDF du plan de table">📄 PDF</button>
+      <button id="resetBtn" class="btn ghost danger" title="Tout effacer et repartir de zéro">🗑️ Réinitialiser</button>
     </div>
   </header>
 
@@ -99,6 +100,16 @@
     </section>
   </main>
 
+  <!-- Bottom tab bar (mobile) -->
+  <nav class="tabbar" id="tabbar">
+    <button type="button" data-tab="guests" class="active">
+      <span class="tab-ico">👥</span><span>Invités</span>
+    </button>
+    <button type="button" data-tab="plan">
+      <span class="tab-ico">🪑</span><span>Plan de table</span>
+    </button>
+  </nav>
+
   <!-- Import modal -->
   <div id="importModal" class="modal-backdrop" hidden>
     <div class="modal modal-lg">
@@ -154,6 +165,26 @@
         <span class="spacer"></span>
         <button class="btn ghost" data-close>Annuler</button>
         <button class="btn primary" id="geSave">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset confirmation modal (double check) -->
+  <div id="resetModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h2>Tout réinitialiser ?</h2>
+        <button class="modal-x" data-close aria-label="Fermer">×</button>
+      </div>
+      <p class="modal-hint danger-text">⚠️ Cette action supprime <b>définitivement</b> toutes les
+        tables, tous les invités et tous les groupes. Elle est <b>irréversible</b>.</p>
+      <p class="modal-hint">Pensez à <b>💾 Sauvegarder</b> avant si vous voulez pouvoir revenir en arrière.</p>
+      <label class="chk"><input type="checkbox" id="resetAck">
+        Je comprends que tout sera supprimé.</label>
+      <div class="modal-actions">
+        <span class="spacer"></span>
+        <button class="btn ghost" data-close>Annuler</button>
+        <button class="btn danger-solid" id="resetConfirm" disabled>Tout supprimer</button>
       </div>
     </div>
   </div>

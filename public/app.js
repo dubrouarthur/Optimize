@@ -150,10 +150,14 @@ function bindChip(el) {
 }
 
 // ---------- Click-to-place ----------
+const isMobile = () => window.matchMedia('(max-width: 860px)').matches;
+
 function selectGuest(id) {
   selectedGuestId = id;
   document.body.classList.toggle('placing', id != null);
   renderPool();
+  // On mobile, jump to the plan so the user can tap a chair right away
+  if (id != null && isMobile()) setTab('plan');
 }
 
 // Pool as a drop target → unseat
@@ -298,9 +302,22 @@ function buildTable(t) {
       if (occupant.diet) seat.classList.add('has-diet');
       seat.title = occupant.name
         + (occupant.diet ? ` — 🍽️ ${occupant.diet}` : '')
-        + ' — glisser pour déplacer, clic pour libérer';
+        + ' — clic pour modifier · × pour retirer de la table';
       seat.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', occupant.id));
-      seat.addEventListener('click', () => unseat(occupant.id));
+      // Click the person to edit them; the × button removes them from the table
+      seat.addEventListener('click', e => {
+        if (e.target.closest('.seat-x')) return;
+        openGuestEditor(occupant.id);
+      });
+      const xBtn = document.createElement('button');
+      xBtn.className = 'seat-x';
+      xBtn.type = 'button';
+      xBtn.textContent = '×';
+      xBtn.title = 'Retirer de la table (renvoyer dans « À placer »)';
+      xBtn.draggable = false;
+      xBtn.addEventListener('click', e => { e.stopPropagation(); unseat(occupant.id); });
+      xBtn.addEventListener('mousedown', e => e.stopPropagation());
+      seat.appendChild(xBtn);
     } else {
       seat.innerHTML = `<span class="seat-name">${i + 1}</span>`;
       seat.title = 'Cliquer pour saisir un nom ici';
@@ -784,6 +801,28 @@ $('#restoreFile').addEventListener('change', async e => {
   finally { e.target.value = ''; }
 });
 
+// ---------- Reset everything (double check) ----------
+const resetModal = $('#resetModal');
+$('#resetBtn').addEventListener('click', () => {
+  $('#resetAck').checked = false;
+  $('#resetConfirm').disabled = true;
+  resetModal.hidden = false;
+});
+resetModal.addEventListener('click', e => {
+  if (e.target === resetModal || e.target.hasAttribute('data-close')) resetModal.hidden = true;
+});
+$('#resetAck').addEventListener('change', e => { $('#resetConfirm').disabled = !e.target.checked; });
+$('#resetConfirm').addEventListener('click', async () => {
+  if (!$('#resetAck').checked) return;
+  // Second verification
+  if (!confirm('Dernière confirmation : supprimer définitivement TOUT le plan ?')) return;
+  await api.send('POST', '/api/reset');
+  resetModal.hidden = true;
+  selectedTableId = null; selectedGuestId = null;
+  await load();
+  toast('Plan réinitialisé');
+});
+
 // ---------- Guest editor ----------
 let editingGuestId = null;
 function openGuestEditor(id) {
@@ -819,6 +858,7 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!modal.hidden) modal.hidden = true;
   if (!guestModal.hidden) guestModal.hidden = true;
+  if (!resetModal.hidden) resetModal.hidden = true;
   if (selectedGuestId != null) selectGuest(null);
   if (selectedTableId != null) selectTable(null);
 });
@@ -860,6 +900,17 @@ function shade(hex, pct) {
 function debounce(fn, ms) {
   let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
+
+// ---------- Mobile tabs (Invités / Plan) ----------
+function setTab(tab) {
+  document.body.classList.remove('tab-guests', 'tab-plan');
+  document.body.classList.add('tab-' + tab);
+  $('#tabbar').querySelectorAll('button').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === tab));
+}
+$('#tabbar').querySelectorAll('button').forEach(b =>
+  b.addEventListener('click', () => setTab(b.dataset.tab)));
+setTab('guests');
 
 // ---------- Live sync (Server-Sent Events) ----------
 // Receives a "changed" signal whenever anyone modifies the plan, then refreshes.

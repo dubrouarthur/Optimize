@@ -439,6 +439,26 @@ app.post('/api/unseat-all', (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Reset everything (wipe and restore default groups) ----------
+app.post('/api/reset', (req, res) => {
+  const palette = ['#e9a23b', '#7c9cbf', '#9d7cbf', '#6fae8f'];
+  const defaults = ['Famille mariée', 'Famille marié', 'Amis', 'Collègues'];
+  const tx = db.transaction(() => {
+    db.exec(`DELETE FROM guests; DELETE FROM tables; DELETE FROM groups;
+             DELETE FROM sqlite_sequence WHERE name IN ('guests','tables','groups');`);
+    const insG = db.prepare(`INSERT INTO groups (name, color) VALUES (?, ?)`);
+    defaults.forEach((n, i) => insG.run(n, palette[i]));
+    const setS = db.prepare(
+      `INSERT INTO settings (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+    );
+    setS.run('event_title', 'Notre mariage');
+    setS.run('event_date', '');
+  });
+  tx();
+  res.json({ ok: true });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`\n  💍  Plan de table  →  http://localhost:${PORT}\n`);

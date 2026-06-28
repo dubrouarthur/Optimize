@@ -1,27 +1,40 @@
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join, isAbsolute } from 'path';
-import { mkdirSync } from 'fs';
+import { mkdirSync, accessSync, constants } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Database location is configurable so it can point at a persistent volume in
-// production (e.g. Railway). Set SQLITE_PATH to an absolute file path, or
-// DATA_DIR to a directory (the file is created as <DATA_DIR>/data.sqlite).
-// Defaults to ./data.sqlite next to the source for local development.
+const isWritableDir = (dir) => {
+  try { mkdirSync(dir, { recursive: true }); accessSync(dir, constants.W_OK); return true; }
+  catch { return false; }
+};
+
+// Where the SQLite file lives. To keep data PERSISTENT in production (where the
+// container filesystem is wiped on each deploy), point it at a mounted volume.
+// Resolution order:
+//   1. SQLITE_PATH         — explicit file path
+//   2. DATA_DIR            — directory to hold data.sqlite
+//   3. /data (auto)        — used automatically if it's a writable mount
+//                            (e.g. attach a Railway volume at /data → done, zero config)
+//   4. ./data.sqlite       — local development fallback
 function resolveDbPath() {
   if (process.env.SQLITE_PATH) {
     const p = process.env.SQLITE_PATH;
     return isAbsolute(p) ? p : join(__dirname, p);
   }
-  const dir = process.env.DATA_DIR
+  let dir = process.env.DATA_DIR
     ? (isAbsolute(process.env.DATA_DIR) ? process.env.DATA_DIR : join(__dirname, process.env.DATA_DIR))
-    : __dirname;
+    : null;
+  if (!dir && isWritableDir('/data')) dir = '/data';   // auto-detect a mounted volume
+  if (!dir) dir = __dirname;
   mkdirSync(dir, { recursive: true });
   return join(dir, 'data.sqlite');
 }
 
-const db = new Database(resolveDbPath());
+const dbPath = resolveDbPath();
+const db = new Database(dbPath);
+console.log(`  🗄️  Base de données : ${dbPath}`);
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
