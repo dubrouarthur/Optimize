@@ -30,7 +30,8 @@ visualisez la salle en un coup d'œil.
   chaque élément est déplaçable, redimensionnable et légendable. Bouton **⊞ Ranger**
   pour réaligner les tables en grille en un clic.
 - **Actions sur une table** : depuis le panneau d'édition, **Vider la table** (renvoie tout
-  le monde dans « À placer ») ou **déplacer tous ses invités vers une autre table**.
+  le monde dans « À placer »), **déplacer tous ses invités vers une autre table**, ou
+  **faire pivoter la table** (rotation libre) pour des dispositions de salle variées.
 - **Tables visuelles** rondes ou rectangulaires, avec chaises tout autour, de
   **2 à 100 places** (les chaises et la table s'adaptent automatiquement à la taille).
 - **Plusieurs façons de remplir une chaise** :
@@ -48,7 +49,9 @@ visualisez la salle en un coup d'œil.
 - **Filtre par groupe** et **recherche** instantanée dans la liste des invités.
 - **Compteurs en direct** : invités placés, tables, places libres.
 - **Export CSV/Excel** (⬇️) — avec colonnes Régime/Allergies et Notes.
-- **Export PDF** (📄) soigné : page de garde, **plan visuel des tables**, répartition par table,
+- **Export PDF** (📄) soigné : page de garde, **plan visuel « qui est placé où »** (chaque
+  invité dessiné à sa place avec son **nom complet** — on voit les voisins et qui se fait face),
+  répartition par table,
   index alphabétique des invités → table, et **récapitulatif des régimes & allergies** (pour le traiteur).
 - **Affiche élégante** (🖼️) : une belle affiche à imprimer/encadrer, avec une **calligraphie
   de mariage**, cadre doré, et **uniquement les noms regroupés par table**.

@@ -58,7 +58,8 @@ db.exec(`
     seats INTEGER NOT NULL DEFAULT 8,
     x     REAL NOT NULL DEFAULT 80,
     y     REAL NOT NULL DEFAULT 80,
-    color TEXT                             -- optional background tint (hex)
+    color TEXT,                            -- optional background tint (hex)
+    rotation REAL NOT NULL DEFAULT 0       -- angle in degrees
   );
 
   CREATE TABLE IF NOT EXISTS guests (
@@ -85,6 +86,9 @@ db.exec(`
 const tableCols = db.prepare(`PRAGMA table_info(tables)`).all().map(c => c.name);
 if (!tableCols.includes('color')) {
   db.exec(`ALTER TABLE tables ADD COLUMN color TEXT`);
+}
+if (!tableCols.includes('rotation')) {
+  db.exec(`ALTER TABLE tables ADD COLUMN rotation REAL NOT NULL DEFAULT 0`);
 }
 const guestCols = db.prepare(`PRAGMA table_info(guests)`).all().map(c => c.name);
 if (!guestCols.includes('diet'))  db.exec(`ALTER TABLE guests ADD COLUMN diet TEXT`);

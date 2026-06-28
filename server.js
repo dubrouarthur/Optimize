@@ -107,17 +107,18 @@ const clampSeats = (v, fallback) => {
 
 // ---------- Tables ----------
 app.post('/api/tables', (req, res) => {
-  const { name, shape, seats, x, y, color } = req.body;
+  const { name, shape, seats, x, y, color, rotation } = req.body;
   const count = db.prepare(`SELECT COUNT(*) c FROM tables`).get().c;
   const info = db.prepare(
-    `INSERT INTO tables (name, shape, seats, x, y, color) VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT INTO tables (name, shape, seats, x, y, color, rotation) VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run(
     (name || `Table ${count + 1}`).trim(),
     shape === 'rect' ? 'rect' : 'round',
     clampSeats(seats, 8),
     x ?? 60 + (count % 4) * 250,
     y ?? 60 + Math.floor(count / 4) * 260,
-    color || null
+    color || null,
+    Number(rotation) || 0
   );
   res.json(db.prepare(`SELECT * FROM tables WHERE id = ?`).get(info.lastInsertRowid));
 });
@@ -125,7 +126,7 @@ app.post('/api/tables', (req, res) => {
 app.patch('/api/tables/:id', (req, res) => {
   const cur = db.prepare(`SELECT * FROM tables WHERE id = ?`).get(req.params.id);
   if (!cur) return res.status(404).json({ error: 'introuvable' });
-  const { name, shape, seats, x, y, color } = req.body;
+  const { name, shape, seats, x, y, color, rotation } = req.body;
   const newSeats = seats != null ? clampSeats(seats, cur.seats) : cur.seats;
   // If shrinking, unseat guests sitting beyond the new seat count
   if (newSeats < cur.seats) {
@@ -134,7 +135,7 @@ app.patch('/api/tables/:id', (req, res) => {
        WHERE table_id = ? AND seat_index >= ?`
     ).run(req.params.id, newSeats);
   }
-  db.prepare(`UPDATE tables SET name = ?, shape = ?, seats = ?, x = ?, y = ?, color = ? WHERE id = ?`)
+  db.prepare(`UPDATE tables SET name = ?, shape = ?, seats = ?, x = ?, y = ?, color = ?, rotation = ? WHERE id = ?`)
     .run(
       name ?? cur.name,
       shape ?? cur.shape,
@@ -142,6 +143,7 @@ app.patch('/api/tables/:id', (req, res) => {
       x ?? cur.x,
       y ?? cur.y,
       color !== undefined ? (color || null) : cur.color,
+      rotation != null ? Number(rotation) || 0 : cur.rotation,
       req.params.id
     );
   res.json(db.prepare(`SELECT * FROM tables WHERE id = ?`).get(req.params.id));
@@ -384,9 +386,9 @@ app.post('/api/import.json', (req, res) => {
     const insG = db.prepare(`INSERT INTO groups (id, name, color) VALUES (?, ?, ?)`);
     for (const g of d.groups || []) insG.run(g.id, g.name, g.color);
     const insT = db.prepare(
-      `INSERT INTO tables (id, name, shape, seats, x, y, color) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO tables (id, name, shape, seats, x, y, color, rotation) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     );
-    for (const t of d.tables) insT.run(t.id, t.name, t.shape, t.seats, t.x ?? 0, t.y ?? 0, t.color ?? null);
+    for (const t of d.tables) insT.run(t.id, t.name, t.shape, t.seats, t.x ?? 0, t.y ?? 0, t.color ?? null, t.rotation ?? 0);
     const insGu = db.prepare(
       `INSERT INTO guests (id, name, group_id, table_id, seat_index, diet, notes)
        VALUES (?, ?, ?, ?, ?, ?, ?)`

@@ -491,8 +491,10 @@ function buildTable(t) {
 
   const card = document.createElement('div');
   card.className = 'table-card' + (t.id === selectedTableId ? ' selected' : '');
+  card.dataset.id = t.id;
   card.style.left = (t.x || 0) + 'px';
   card.style.top = (t.y || 0) + 'px';
+  card.style.setProperty('--rot', (t.rotation || 0) + 'deg');
   card.title = 'Glisser pour déplacer · cliquer pour modifier';
   makeDraggable(card, { x: t.x || 0, y: t.y || 0 },
     (x, y) => { card.style.left = x + 'px'; card.style.top = y + 'px'; },
@@ -754,6 +756,8 @@ function renderInspector() {
   box.hidden = false;
   $('#insName').value = t.name;
   $('#insSeats').value = t.seats;
+  $('#insRot').value = t.rotation || 0;
+  $('#rotVal').textContent = (t.rotation || 0) + '°';
   $('#insShape').querySelectorAll('button').forEach(b =>
     b.classList.toggle('active', b.dataset.shape === t.shape));
 
@@ -802,6 +806,17 @@ function setupInspector() {
       const t = sel(); if (!t || t.shape === b.dataset.shape) return;
       updateTable(t.id, { shape: b.dataset.shape });
     }));
+  // Rotation: live preview on slide, commit on release; buttons step by 15°
+  $('#insRot').addEventListener('input', e => {
+    const t = sel(); if (!t) return;
+    const deg = +e.target.value;
+    $('#rotVal').textContent = deg + '°';
+    const card = document.querySelector(`.table-card[data-id="${t.id}"]`);
+    if (card) card.style.setProperty('--rot', deg + 'deg');
+  });
+  $('#insRot').addEventListener('change', e => { const t = sel(); if (t) updateTable(t.id, { rotation: +e.target.value }); });
+  $('#rotMinus').addEventListener('click', () => { const t = sel(); if (t) updateTable(t.id, { rotation: (((t.rotation || 0) - 15) % 360 + 360) % 360 }); });
+  $('#rotPlus').addEventListener('click', () => { const t = sel(); if (t) updateTable(t.id, { rotation: ((t.rotation || 0) + 15) % 360 }); });
   $('#insDelete').addEventListener('click', async () => {
     const t = sel(); if (!t) return;
     if (!confirm(`Supprimer « ${t.name} » ?`)) return;
@@ -1000,7 +1015,8 @@ function buildPrintDoc() {
       <p class="pd-sub">Plan de table · ${placed} invité${placed > 1 ? 's' : ''} placé${placed > 1 ? 's' : ''} · ${state.tables.length} table${state.tables.length > 1 ? 's' : ''}</p>
     </section>
     <section class="pd-section">
-      <h2>Plan visuel</h2>
+      <h2>Plan visuel — qui est placé où</h2>
+      <p class="pd-note">Chaque invité est représenté à sa place autour de la table : on voit d'un coup d'œil les voisins et qui se fait face.</p>
       <div class="pd-visual" id="pdVisual"></div>
     </section>
     <section class="pd-section pd-break">
@@ -1013,9 +1029,11 @@ function buildPrintDoc() {
     </section>
     ${dietHtml}`;
 
-  // Render the real table visuals into the print document
+  // Render the real table visuals (full names) so positions are readable
   const vis = $('#pdVisual');
+  seatFullNames = true;
   for (const t of state.tables) vis.appendChild(buildTable(t));
+  seatFullNames = false;
 }
 
 // ---------- Import modal ----------
@@ -1283,7 +1301,9 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+let seatFullNames = false;   // print uses full names so positions are readable
 function firstName(name) {
+  if (seatFullNames) return name;
   // show first name + last initial to fit small seats
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0];
