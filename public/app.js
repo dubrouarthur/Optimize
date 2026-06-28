@@ -16,6 +16,7 @@ let searchTerm = '';
 let filterGroup = 'all';        // 'all' | 'none' | <group id>
 let selectedGuestId = null;     // click-to-place selection
 let selectedTableId = null;     // table being edited in the inspector
+let draggingTable = false;      // true while a table is being dragged
 
 const $ = (s, el = document) => el.querySelector(s);
 const groupById = (id) => state.groups.find(g => g.id === id);
@@ -392,7 +393,7 @@ function enableTableDrag(wrap, handle, t, onClick) {
     origX = t.x; origY = t.y;
     const onMove = ev => {
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
-      if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+      if (Math.abs(dx) + Math.abs(dy) > 3) { moved = true; draggingTable = true; }
       t.x = Math.max(0, origX + dx);
       t.y = Math.max(0, origY + dy);
       wrap.style.left = t.x + 'px';
@@ -401,6 +402,7 @@ function enableTableDrag(wrap, handle, t, onClick) {
     const onUp = async () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      draggingTable = false;
       if (moved) await api.send('PATCH', `/api/tables/${t.id}`, { x: t.x, y: t.y });
       else if (onClick) onClick();
     };
@@ -621,4 +623,42 @@ function debounce(fn, ms) {
   let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
 
-load();
+// ---------- Live sync (Server-Sent Events) ----------
+// Receives a "changed" signal whenever anyone modifies the plan, then refreshes.
+// Refresh is deferred while the local user is typing or dragging, so a remote
+// update never steals focus or interrupts an in-progress edit.
+let pendingRemote = false;
+
+function isBusyEditing() {
+  // Only defer for edits that a re-render would actually disrupt. Static fields
+  // (add-guest, search, event title) survive load() untouched, so they don't block.
+  if (draggingTable || !modal.hidden) return true;
+  const ae = document.activeElement;
+  if (!ae) return false;
+  if (ae.classList.contains('seat-input') || ae.classList.contains('gname')) return true;
+  if (ae.closest && ae.closest('#tableInspector')) return true;
+  return false;
+}
+
+const applyRemote = debounce(async () => {
+  if (!pendingRemote) return;
+  if (isBusyEditing()) { setTimeout(applyRemote, 700); return; }
+  pendingRemote = false;
+  await load();
+}, 250);
+
+function setLive(on) {
+  const dot = $('#liveDot');
+  dot.classList.toggle('on', on);
+  dot.title = on ? 'Synchronisé en direct avec les autres participants' : 'Reconnexion…';
+}
+
+function connectLive() {
+  const es = new EventSource('/api/events');
+  es.addEventListener('hello', () => setLive(true));
+  es.addEventListener('changed', () => { pendingRemote = true; applyRemote(); });
+  es.onopen = () => setLive(true);
+  es.onerror = () => setLive(false); // EventSource auto-reconnects
+}
+
+load().then(connectLive);

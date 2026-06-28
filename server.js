@@ -8,6 +8,46 @@ const app = express();
 app.use(express.json());
 app.use(express.static(join(__dirname, 'public')));
 
+// ---------- Live sync (Server-Sent Events) ----------
+// Every connected browser keeps an open SSE stream. After any successful write,
+// we broadcast a "changed" signal so all clients refresh and stay in sync.
+const clients = new Set();
+let revision = 0;
+
+function broadcast() {
+  revision++;
+  const payload = `event: changed\ndata: ${revision}\n\n`;
+  for (const res of clients) {
+    try { res.write(payload); } catch { /* dropped on next close */ }
+  }
+}
+
+// Broadcast automatically after any successful mutating /api request.
+app.use('/api', (req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.on('finish', () => { if (res.statusCode < 400) broadcast(); });
+  }
+  next();
+});
+
+app.get('/api/events', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write(`retry: 3000\n`);
+  res.write(`event: hello\ndata: ${revision}\n\n`);
+  clients.add(res);
+  req.on('close', () => { clients.delete(res); });
+});
+
+// Keep SSE connections alive through proxies/load balancers.
+setInterval(() => {
+  for (const res of clients) { try { res.write(`: ping\n\n`); } catch { /* noop */ } }
+}, 25000).unref();
+
 // ---------- Helpers ----------
 const getSettings = () => {
   const rows = db.prepare(`SELECT key, value FROM settings`).all();

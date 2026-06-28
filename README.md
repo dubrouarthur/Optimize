@@ -8,6 +8,10 @@ visualisez la salle en un coup d'œil.
 
 ## Fonctionnalités
 
+- **Collaboratif en temps réel** : plusieurs personnes ouvrent la même page et voient
+  **les mêmes changements en direct**. Dès qu'un participant ajoute un invité, place
+  quelqu'un ou modifie une table, l'écran de tout le monde se met à jour automatiquement
+  (indicateur « ● En direct »). Aucune actualisation nécessaire.
 - **Inscription des invités** en un clic, avec groupes colorés (famille, amis, collègues…).
 - **Import en masse** : collez une liste de noms (un par ligne) pour ajouter tout le monde d'un coup.
 - **Tables visuelles** rondes ou rectangulaires, avec chaises tout autour.
@@ -79,6 +83,9 @@ L'app démarre avec `npm start` et écoute sur le port fourni par `process.env.P
 
 - **Backend** : Node.js + Express + `better-sqlite3` (base de données embarquée).
 - **Frontend** : HTML/CSS/JS natif, sans étape de build — léger et rapide.
+- **Temps réel** : Server-Sent Events (`/api/events`) — le serveur pousse un signal à tous
+  les navigateurs connectés après chaque modification, et chacun se resynchronise (sans
+  dépendance externe ni WebSocket).
 - **Base de données** : SQLite locale (`data.sqlite`), créée automatiquement au premier lancement.
 
 ## Structure

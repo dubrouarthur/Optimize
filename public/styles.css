@@ -73,7 +73,22 @@ body {
   white-space: nowrap;
 }
 .stat b { color: var(--ink); font-weight: 600; }
-.actions { display: flex; gap: 10px; }
+.actions { display: flex; gap: 10px; align-items: center; }
+.live-dot {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--muted); padding-right: 4px; white-space: nowrap;
+}
+.live-dot::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%;
+  background: #c0392b; box-shadow: 0 0 0 0 rgba(192,57,43,.4);
+}
+.live-dot.on::before {
+  background: #6fae8f; animation: livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(111,174,143,.45); }
+  50% { box-shadow: 0 0 0 5px rgba(111,174,143,0); }
+}
 
 /* ---------- Buttons ---------- */
 .btn {
