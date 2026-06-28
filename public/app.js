@@ -15,6 +15,7 @@ let state = { settings: {}, groups: [], tables: [], guests: [] };
 let searchTerm = '';
 let filterGroup = 'all';        // 'all' | 'none' | <group id>
 let selectedGuestId = null;     // click-to-place selection
+let selectedTableId = null;     // table being edited in the inspector
 
 const $ = (s, el = document) => el.querySelector(s);
 const groupById = (id) => state.groups.find(g => g.id === id);
@@ -44,6 +45,7 @@ function renderAll() {
   renderPool();
   renderGroups();
   renderBoard();
+  renderInspector();
   renderStats();
 }
 
@@ -272,37 +274,11 @@ function buildTable(t) {
 
   wrap.appendChild(disc);
 
-  // Tools
-  const tools = document.createElement('div');
-  tools.className = 'table-tools';
-  tools.innerHTML = `
-    <button data-act="rename" title="Renommer">✏️</button>
-    <button data-act="minus" title="Retirer une place">−</button>
-    <span class="seatnum" title="Cliquer pour saisir le nombre de places">${t.seats}</span>
-    <button data-act="plus" title="Ajouter une place">+</button>
-    <button data-act="shape" title="Changer la forme">${t.shape === 'round' ? '▭' : '◯'}</button>
-    <button data-act="del" title="Supprimer la table">🗑️</button>`;
-  tools.querySelector('[data-act=rename]').onclick = () => renameTable(t);
-  tools.querySelector('[data-act=minus]').onclick = () => updateTable(t.id, { seats: t.seats - 1 });
-  tools.querySelector('[data-act=plus]').onclick = () => updateTable(t.id, { seats: t.seats + 1 });
-  tools.querySelector('.seatnum').onclick = () => {
-    const n = prompt(`Nombre de places à « ${t.name} » :`, t.seats);
-    if (n == null) return;
-    const v = parseInt(n);
-    if (!isNaN(v) && v > 0) updateTable(t.id, { seats: v });
-  };
-  tools.querySelector('[data-act=shape]').onclick = () =>
-    updateTable(t.id, { shape: t.shape === 'round' ? 'rect' : 'round' });
-  tools.querySelector('[data-act=del]').onclick = async () => {
-    if (!confirm(`Supprimer « ${t.name} » ?`)) return;
-    await api.send('DELETE', `/api/tables/${t.id}`);
-    state.tables = state.tables.filter(x => x.id !== t.id);
-    state.guests.forEach(g => { if (g.table_id === t.id) { g.table_id = null; g.seat_index = null; } });
-    renderAll();
-  };
-  wrap.appendChild(tools);
+  if (t.id === selectedTableId) wrap.classList.add('selected');
+  disc.title = 'Cliquer pour modifier · glisser pour déplacer';
 
-  enableTableDrag(wrap, disc, t);
+  // Drag to move; a click without movement opens the inspector
+  enableTableDrag(wrap, disc, t, () => selectTable(t.id));
   return wrap;
 }
 
@@ -405,14 +381,8 @@ async function updateTable(id, patch) {
   await load(); // reload in case seats were unseated when shrinking
 }
 
-async function renameTable(t) {
-  const name = prompt('Nom de la table :', t.name);
-  if (name == null) return;
-  await updateTable(t.id, { name: name.trim() || t.name });
-}
-
-// Drag a table around the board
-function enableTableDrag(wrap, handle, t) {
+// Drag a table around the board; onClick fires on a press without movement.
+function enableTableDrag(wrap, handle, t, onClick) {
   let startX, startY, origX, origY, moved = false;
   handle.addEventListener('mousedown', e => {
     if (e.target.closest('.seat')) return;
@@ -432,11 +402,68 @@ function enableTableDrag(wrap, handle, t) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       if (moved) await api.send('PATCH', `/api/tables/${t.id}`, { x: t.x, y: t.y });
+      else if (onClick) onClick();
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
 }
+
+// ---------- Table inspector ----------
+function selectTable(id) {
+  selectedTableId = id;
+  renderBoard();
+  renderInspector();
+}
+
+function renderInspector() {
+  const box = $('#tableInspector');
+  const t = state.tables.find(x => x.id === selectedTableId);
+  if (!t) { box.hidden = true; return; }
+  box.hidden = false;
+  $('#insName').value = t.name;
+  $('#insSeats').value = t.seats;
+  $('#insShape').querySelectorAll('button').forEach(b =>
+    b.classList.toggle('active', b.dataset.shape === t.shape));
+}
+
+// Wire inspector controls once
+function setupInspector() {
+  const sel = () => state.tables.find(x => x.id === selectedTableId);
+  const seatsInput = $('#insSeats');
+  const commitSeats = (v) => {
+    const t = sel(); if (!t) return;
+    const n = Math.max(1, Math.min(30, parseInt(v) || t.seats));
+    if (n !== t.seats) updateTable(t.id, { seats: n });
+    else seatsInput.value = t.seats;
+  };
+  $('#insMinus').addEventListener('click', () => commitSeats((sel()?.seats || 1) - 1));
+  $('#insPlus').addEventListener('click', () => commitSeats((sel()?.seats || 0) + 1));
+  seatsInput.addEventListener('change', e => commitSeats(e.target.value));
+  $('#insName').addEventListener('change', e => {
+    const t = sel(); if (!t) return;
+    updateTable(t.id, { name: e.target.value.trim() || t.name });
+  });
+  $('#insShape').querySelectorAll('button').forEach(b =>
+    b.addEventListener('click', () => {
+      const t = sel(); if (!t || t.shape === b.dataset.shape) return;
+      updateTable(t.id, { shape: b.dataset.shape });
+    }));
+  $('#insDelete').addEventListener('click', async () => {
+    const t = sel(); if (!t) return;
+    if (!confirm(`Supprimer « ${t.name} » ?`)) return;
+    await api.send('DELETE', `/api/tables/${t.id}`);
+    selectedTableId = null;
+    await load();
+  });
+  $('#insDone').addEventListener('click', () => selectTable(null));
+}
+setupInspector();
+
+// Click empty board area to deselect the table
+$('#board').addEventListener('mousedown', e => {
+  if (e.target.id === 'board' && selectedTableId != null) selectTable(null);
+});
 
 // ---------- Add tables ----------
 document.querySelectorAll('[data-add]').forEach(btn => {
@@ -449,8 +476,8 @@ document.querySelectorAll('[data-add]').forEach(btn => {
       y: board.scrollTop + 60,
     });
     state.tables.push(t);
-    renderBoard();
     renderStats();
+    selectTable(t.id);
   });
 });
 
@@ -558,7 +585,10 @@ $('#importConfirm').addEventListener('click', async () => {
   toast(`${r.added} invité(s) ajouté(s)`);
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { if (!modal.hidden) modal.hidden = true; if (selectedGuestId != null) selectGuest(null); }
+  if (e.key !== 'Escape') return;
+  if (!modal.hidden) modal.hidden = true;
+  if (selectedGuestId != null) selectGuest(null);
+  if (selectedTableId != null) selectTable(null);
 });
 
 // ---------- Settings ----------

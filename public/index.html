@@ -61,9 +61,35 @@
       <div class="board-toolbar">
         <button class="btn" data-add="round">⊕ Table ronde</button>
         <button class="btn" data-add="rect">⊕ Table rectangle</button>
-        <span class="hint">Glissez les invités sur les chaises · déplacez les tables sur le plan</span>
+        <span class="hint">Cliquez une table pour la modifier · glissez-la pour la déplacer</span>
       </div>
-      <div id="board" class="board"></div>
+      <div class="board-scroll">
+        <div id="board" class="board"></div>
+
+        <!-- Inspector : édition de la table sélectionnée -->
+        <div id="tableInspector" class="inspector" hidden>
+          <input id="insName" class="insp-name" placeholder="Nom de la table" />
+          <div class="insp-field">
+            <label>Places</label>
+            <div class="stepper">
+              <button id="insMinus" type="button" aria-label="Retirer une place">−</button>
+              <input id="insSeats" type="number" min="1" max="30" />
+              <button id="insPlus" type="button" aria-label="Ajouter une place">+</button>
+            </div>
+          </div>
+          <div class="insp-field">
+            <label>Forme</label>
+            <div class="segmented" id="insShape">
+              <button type="button" data-shape="round">◯ Ronde</button>
+              <button type="button" data-shape="rect">▭ Rectangle</button>
+            </div>
+          </div>
+          <div class="insp-actions">
+            <button id="insDelete" class="insp-del" type="button">Supprimer</button>
+            <button id="insDone" class="btn primary" type="button">Terminé</button>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 

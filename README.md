@@ -16,8 +16,9 @@ visualisez la salle en un coup d'œil.
   - **Clic-pour-placer** (idéal tactile/mobile) : on clique un invité, puis une chaise ;
   - **Saisie directe sur la place** : on clique une chaise vide et on tape le nom — l'invité
     est créé et assis d'un coup, puis le curseur passe à la chaise suivante (saisie en rafale).
-- **Taille de table réglable** : boutons +/− ou clic sur le nombre de places pour saisir
-  directement le total ; tables rondes ↔ rectangulaires.
+- **Édition de table en un clic** : cliquez une table pour ouvrir un panneau clair
+  (nom, **nombre de places** réglable au stepper ou en saisie directe, forme
+  ronde ↔ rectangulaire, suppression).
 - **Plan de salle** : déplacez les tables où vous voulez sur le plan.
 - **Placement automatique** (✨) intelligent : remplit les places libres en gardant
   chaque groupe **à la même table** quand c'est possible.
@@ -69,8 +70,8 @@ L'app démarre avec `npm start` et écoute sur le port fourni par `process.env.P
 | Placer un invité (tactile) | Cliquer l'invité (il s'illumine) puis cliquer une chaise |
 | Déplacer / échanger | Glisser un invité d'une chaise à une autre |
 | Libérer une place | Clic sur l'invité assis (ou le glisser vers « À placer ») |
-| Régler le nombre de places | Survoler la table → +/− ou clic sur le nombre |
-| Renommer / forme | Survoler une table → outils sous la table |
+| Modifier une table | **Cliquer la table** → panneau d'édition (nom, places, forme, suppression) |
+| Régler le nombre de places | Dans le panneau : boutons +/− ou saisie directe du nombre |
 | Déplacer une table | Glisser le disque de la table sur le plan |
 | Exporter | **⬇️ CSV** (Excel) ou **📄 PDF** |
 

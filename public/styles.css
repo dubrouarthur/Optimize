@@ -206,6 +206,7 @@ h2 {
   background: rgba(255,255,255,0.4);
 }
 .hint { color: var(--muted); font-size: 12.5px; margin-left: auto; font-style: italic; }
+.board-scroll { position: relative; flex: 1; min-height: 0; display: flex; }
 .board {
   flex: 1; position: relative; overflow: auto;
   background-image: radial-gradient(var(--line) 1px, transparent 1px);
@@ -281,18 +282,61 @@ body.placing .seat.empty {
   padding: 0;
 }
 
-.table-tools {
-  display: flex; gap: 6px; margin-top: 10px;
-  opacity: 0; transition: opacity .15s;
+/* Selected table */
+.table.selected .table-disc {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 4px var(--gold-soft), var(--shadow);
 }
-.table:hover .table-tools { opacity: 1; }
-.table-tools button, .table-tools .seatnum {
-  font-size: 12px; border: 1px solid var(--line); background: #fff;
-  border-radius: 8px; padding: 3px 8px; cursor: pointer; color: var(--muted);
-  font-family: inherit;
+
+/* ---------- Inspector (édition de table) ---------- */
+.inspector {
+  position: absolute; top: 16px; right: 16px;
+  z-index: 30; width: min(360px, calc(100% - 32px));
+  background: #fff; border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(60,50,30,.16); padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 13px;
+  animation: insIn .16s ease;
 }
-.table-tools button:hover { color: var(--ink); border-color: var(--gold-soft); }
-.table-tools .seatnum { cursor: default; color: var(--ink); }
+.inspector[hidden] { display: none; }
+@keyframes insIn { from { opacity: 0; transform: translateY(-8px); } }
+.insp-name {
+  font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 21px;
+  border: none; border-bottom: 1px solid var(--line); background: transparent;
+  outline: none; padding: 2px 0 6px; color: var(--ink);
+}
+.insp-name:focus { border-color: var(--gold); }
+.insp-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.insp-field > label { font-size: 13.5px; color: var(--muted); }
+
+.stepper { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.stepper button {
+  width: 38px; height: 38px; border: none; background: #faf6ee; cursor: pointer;
+  font-size: 20px; color: var(--ink); font-family: inherit; line-height: 1;
+  transition: background .12s;
+}
+.stepper button:hover { background: var(--gold-soft); }
+.stepper input {
+  width: 56px; height: 38px; border: none; border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line); text-align: center; font-family: inherit;
+  font-size: 16px; font-weight: 600; color: var(--ink); outline: none;
+  -moz-appearance: textfield;
+}
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.segmented { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.segmented button {
+  padding: 9px 14px; border: none; background: #fff; cursor: pointer;
+  font-family: inherit; font-size: 13px; color: var(--muted); transition: all .12s;
+}
+.segmented button + button { border-left: 1px solid var(--line); }
+.segmented button.active { background: var(--gold); color: #fff; }
+
+.insp-actions { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; }
+.insp-del {
+  border: none; background: none; color: #c0392b; cursor: pointer;
+  font-family: inherit; font-size: 13px; padding: 6px 4px;
+}
+.insp-del:hover { text-decoration: underline; }
 
 /* ---------- Toast ---------- */
 .toast {
