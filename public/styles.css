@@ -522,47 +522,86 @@ body.swapping .seat.empty { animation: pulse 1.3s ease-in-out infinite; border-c
 .tabbar button.active { color: var(--gold); font-weight: 600; }
 .tabbar button.active .tab-ico { filter: none; opacity: 1; }
 
-/* ---------- Responsive (mobile-first behaviour) ---------- */
+/* ---------- Responsive (mobile-first, native feel) ---------- */
 @media (max-width: 860px) {
-  body { height: 100vh; overflow: hidden; }
-  .topbar { flex-wrap: wrap; gap: 10px 12px; padding: 10px 14px; }
+  /* Let the page scroll naturally instead of trapping scroll in inner boxes —
+     this fixes the "stuck scroll" and the 100vh address-bar layout bugs. */
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    display: block; height: auto; min-height: 100dvh; overflow: visible;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+    padding-bottom: calc(60px + env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    flex-wrap: wrap; gap: 8px 12px; padding: 10px 14px;
+    padding-top: calc(10px + env(safe-area-inset-top));
+  }
   .brand { min-width: 0; flex: 1; }
   .ring { font-size: 24px; }
-  .event-title { font-size: 21px; width: auto; max-width: 60vw; }
-  .event-date { font-size: 12px; width: auto; max-width: 60vw; }
+  .event-title { font-size: 20px; width: auto; max-width: 62vw; }
+  .event-date { font-size: 12px; width: auto; max-width: 62vw; }
   .stats { order: 3; width: 100%; gap: 6px; }
   .stat { padding: 5px 11px; font-size: 12px; }
   .live-dot { font-size: 0; gap: 0; }            /* keep just the dot on mobile */
   .actions {
     order: 4; width: 100%; gap: 7px;
-    overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; padding-bottom: 2px;
   }
-  .actions .btn { white-space: nowrap; flex-shrink: 0; padding: 8px 11px; font-size: 13px; }
+  .actions::-webkit-scrollbar { display: none; }
+  .actions .btn { white-space: nowrap; flex-shrink: 0; padding: 9px 13px; font-size: 13px; }
 
   .tabbar {
     display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
-    background: rgba(255,255,255,.95); backdrop-filter: blur(10px);
-    border-top: 1px solid var(--line); box-shadow: 0 -2px 14px rgba(60,50,30,.08);
+    background: rgba(255,255,255,.96); backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line); box-shadow: 0 -2px 16px rgba(60,50,30,.10);
+    padding-bottom: env(safe-area-inset-bottom);
   }
+  .tabbar button { padding: 10px 0 9px; }
 
-  .layout { flex-direction: column; min-height: 0; padding-bottom: 58px; }
-  /* Show one panel at a time, chosen by the active tab */
+  /* One panel at a time, chosen by the active tab; both flow naturally */
+  .layout { display: block; }
   .sidebar, .board-wrap { display: none; }
   body.tab-guests .sidebar { display: flex; }
-  body.tab-plan  .board-wrap { display: flex; }
+  body.tab-plan  .board-wrap { display: block; }
 
   .sidebar {
-    width: 100%; border-right: none; max-height: none; height: 100%;
+    width: 100%; border-right: none; max-height: none; height: auto;
+    overflow: visible; padding: 16px;
   }
-  .board { min-height: 0; }
+  .board-wrap { min-width: 0; }
+  .board-scroll { display: block; }
+  .board {
+    display: flex; flex-wrap: wrap; justify-content: center;
+    height: auto; overflow: visible; padding: 16px 14px 24px;
+  }
+  .board-toolbar {
+    position: sticky; top: 0; z-index: 5;
+    background: rgba(247,243,236,.96); backdrop-filter: blur(10px);
+  }
   .hint { display: none; }
-  .board-toolbar { position: sticky; top: 0; z-index: 5; }
+
+  /* Table inspector becomes a bottom sheet (above the tab bar) */
+  .inspector {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+    width: 100%; max-width: none; border-radius: 18px 18px 0 0;
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+    box-shadow: 0 -10px 40px rgba(60,50,30,.22); animation: sheetUp .2s ease;
+  }
+  @keyframes sheetUp { from { transform: translateY(100%); } }
+
+  /* Modals sit a touch higher so the on-screen keyboard doesn't cover them */
+  .modal { width: min(560px, 94vw); }
 
   /* Bigger touch targets */
-  .chip { padding: 11px 12px; }
-  .chip .edit, .chip .del { opacity: .6; }
-  .filter-chip { padding: 6px 12px; font-size: 12.5px; }
-  .inspector { width: calc(100% - 24px); left: 12px; right: 12px; top: 12px; }
+  .chip { padding: 12px 12px; }
+  .chip .edit, .chip .del { opacity: .55; font-size: 17px; }
+  .filter-chip { padding: 7px 13px; font-size: 12.5px; }
+  .seat-x, .swap-x { opacity: 1; transform: scale(1); }   /* always visible on touch */
+  .btn, .link-btn { -webkit-tap-highlight-color: transparent; }
 }
 
 /* ---------- Printable document (PDF) ---------- */
