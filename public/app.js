@@ -245,6 +245,8 @@ function buildTable(t) {
     const occupant = seated.find(g => g.seat_index === i);
     const seat = document.createElement('div');
     seat.className = 'seat ' + (occupant ? 'filled' : 'empty');
+    seat.dataset.table = t.id;
+    seat.dataset.seat = i;
     seat.style.left = (geo.w / 2 + pos.x) + 'px';
     seat.style.top = (geo.h / 2 + pos.y) + 'px';
     if (occupant) {
@@ -258,7 +260,11 @@ function buildTable(t) {
       seat.addEventListener('click', () => unseat(occupant.id));
     } else {
       seat.innerHTML = `<span class="seat-name">${i + 1}</span>`;
-      seat.addEventListener('click', () => placeSelectedOn(t.id, i));
+      seat.title = 'Cliquer pour saisir un nom ici';
+      seat.addEventListener('click', () => {
+        if (selectedGuestId != null) placeSelectedOn(t.id, i);
+        else openSeatInput(seat, t.id, i);
+      });
     }
     bindSeatDrop(seat, t.id, i);
     wrap.appendChild(seat);
@@ -272,13 +278,19 @@ function buildTable(t) {
   tools.innerHTML = `
     <button data-act="rename" title="Renommer">✏️</button>
     <button data-act="minus" title="Retirer une place">−</button>
-    <span class="seatnum">${t.seats}</span>
+    <span class="seatnum" title="Cliquer pour saisir le nombre de places">${t.seats}</span>
     <button data-act="plus" title="Ajouter une place">+</button>
     <button data-act="shape" title="Changer la forme">${t.shape === 'round' ? '▭' : '◯'}</button>
     <button data-act="del" title="Supprimer la table">🗑️</button>`;
   tools.querySelector('[data-act=rename]').onclick = () => renameTable(t);
   tools.querySelector('[data-act=minus]').onclick = () => updateTable(t.id, { seats: t.seats - 1 });
   tools.querySelector('[data-act=plus]').onclick = () => updateTable(t.id, { seats: t.seats + 1 });
+  tools.querySelector('.seatnum').onclick = () => {
+    const n = prompt(`Nombre de places à « ${t.name} » :`, t.seats);
+    if (n == null) return;
+    const v = parseInt(n);
+    if (!isNaN(v) && v > 0) updateTable(t.id, { seats: v });
+  };
   tools.querySelector('[data-act=shape]').onclick = () =>
     updateTable(t.id, { shape: t.shape === 'round' ? 'rect' : 'round' });
   tools.querySelector('[data-act=del]').onclick = async () => {
@@ -336,6 +348,46 @@ function bindSeatDrop(seat, tableId, seatIndex) {
     await api.send('PATCH', `/api/guests/${id}`, { table_id: tableId, seat_index: seatIndex });
     await load();
   });
+}
+
+// Type a guest's name directly on an empty chair. After Enter, jumps to the
+// next empty chair of the same table so you can go around the table quickly.
+function openSeatInput(seatEl, tableId, seatIndex) {
+  if (seatEl.querySelector('input')) return;
+  const prev = seatEl.innerHTML;
+  seatEl.innerHTML = '';
+  const input = document.createElement('input');
+  input.className = 'seat-input';
+  input.maxLength = 40;
+  seatEl.appendChild(input);
+  input.focus();
+
+  let done = false;
+  const cancel = () => { if (!done) { done = true; seatEl.innerHTML = prev; } };
+  const commit = async (chain) => {
+    if (done) return;
+    const name = input.value.trim();
+    if (!name) return cancel();
+    done = true;
+    const group_id = $('#guestGroup').value || null;
+    await api.send('POST', '/api/guests', { name, group_id, table_id: tableId, seat_index: seatIndex });
+    await load();
+    if (chain) {
+      const t = state.tables.find(x => x.id === tableId);
+      const taken = new Set(guestsOfTable(tableId).map(g => g.seat_index));
+      let next = -1;
+      for (let k = seatIndex + 1; k < (t ? t.seats : 0); k++) { if (!taken.has(k)) { next = k; break; } }
+      if (next >= 0) {
+        const el = document.querySelector(`.seat[data-table="${tableId}"][data-seat="${next}"]`);
+        if (el) openSeatInput(el, tableId, next);
+      }
+    }
+  };
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  });
+  input.addEventListener('blur', () => commit(false));
 }
 
 async function placeSelectedOn(tableId, seatIndex) {
@@ -436,8 +488,54 @@ $('#unseatAll').addEventListener('click', async () => {
   await load();
 });
 
-$('#printBtn').addEventListener('click', () => window.print());
+$('#pdfBtn').addEventListener('click', () => { buildPrintDoc(); window.print(); });
 $('#exportBtn').addEventListener('click', () => { window.location.href = '/api/export.csv'; });
+
+// ---------- Printable PDF document ----------
+function buildPrintDoc() {
+  const title = $('#eventTitle').value || 'Plan de table';
+  const date = $('#eventDate').value || '';
+  const placed = state.guests.filter(g => g.table_id != null).length;
+
+  // Per-table guest lists
+  let tablesHtml = '';
+  for (const t of state.tables) {
+    const seated = guestsOfTable(t.id).sort((a, b) => a.seat_index - b.seat_index);
+    const items = seated.length
+      ? seated.map(g => {
+          const grp = groupById(g.group_id);
+          return `<li><span class="pd-seat">${g.seat_index + 1}</span> ${esc(g.name)}${grp ? ` <span class="pd-grp">· ${esc(grp.name)}</span>` : ''}</li>`;
+        }).join('')
+      : '<li class="pd-empty">— aucune personne placée —</li>';
+    tablesHtml += `<div class="pd-table">
+      <h3>${esc(t.name)} <span class="pd-count">${seated.length}/${t.seats}</span></h3>
+      <ol>${items}</ol>
+    </div>`;
+  }
+
+  // Alphabetical guest index
+  const tableName = id => (state.tables.find(t => t.id === id) || {}).name;
+  const index = [...state.guests]
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
+    .map(g => `<li>${esc(g.name)} <span class="pd-dots"></span> <b>${g.table_id ? esc(tableName(g.table_id)) : '—'}</b></li>`)
+    .join('');
+
+  $('#printDoc').innerHTML = `
+    <section class="pd-cover">
+      <div class="pd-ring">💍</div>
+      <h1>${esc(title)}</h1>
+      ${date ? `<p class="pd-date">${esc(date)}</p>` : ''}
+      <p class="pd-sub">Plan de table · ${placed} invité${placed > 1 ? 's' : ''} placé${placed > 1 ? 's' : ''} · ${state.tables.length} table${state.tables.length > 1 ? 's' : ''}</p>
+    </section>
+    <section class="pd-section">
+      <h2>Répartition par table</h2>
+      <div class="pd-grid">${tablesHtml || '<p>Aucune table.</p>'}</div>
+    </section>
+    <section class="pd-section pd-break">
+      <h2>Index des invités</h2>
+      <ul class="pd-index">${index || '<li>Aucun invité.</li>'}</ul>
+    </section>`;
+}
 
 // ---------- Import modal ----------
 const modal = $('#importModal');

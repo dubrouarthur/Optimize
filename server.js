@@ -107,10 +107,20 @@ app.delete('/api/tables/:id', (req, res) => {
 
 // ---------- Guests ----------
 app.post('/api/guests', (req, res) => {
-  const { name, group_id } = req.body;
+  const { name, group_id, table_id, seat_index } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'nom requis' });
-  const info = db.prepare(`INSERT INTO guests (name, group_id) VALUES (?, ?)`)
-    .run(name.trim(), group_id || null);
+  // Optionally seat the guest immediately (e.g. created by clicking an empty chair)
+  let tId = null, sIdx = null;
+  if (table_id != null && seat_index != null) {
+    tId = parseInt(table_id);
+    sIdx = parseInt(seat_index);
+    // free the chair first if somehow occupied
+    db.prepare(`UPDATE guests SET table_id = NULL, seat_index = NULL WHERE table_id = ? AND seat_index = ?`)
+      .run(tId, sIdx);
+  }
+  const info = db.prepare(
+    `INSERT INTO guests (name, group_id, table_id, seat_index) VALUES (?, ?, ?, ?)`
+  ).run(name.trim(), group_id || null, tId, sIdx);
   res.json(db.prepare(`SELECT * FROM guests WHERE id = ?`).get(info.lastInsertRowid));
 });
 

@@ -275,6 +275,11 @@ body.placing .seat.empty {
 }
 .seat.empty { color: var(--muted); }
 .seat.empty::before { content: ''; }
+.seat-input {
+  width: 100%; height: 100%; border: none; outline: none; background: transparent;
+  text-align: center; font-family: inherit; font-size: 10px; color: var(--ink);
+  padding: 0;
+}
 
 .table-tools {
   display: flex; gap: 6px; margin-top: 10px;
@@ -337,15 +342,55 @@ body.placing .seat.empty {
   .hint { display: none; }
 }
 
-/* ---------- Print ---------- */
+/* ---------- Printable document (PDF) ---------- */
+.print-doc { display: none; }
+
 @media print {
-  .topbar .actions, .sidebar, .board-toolbar, .table-tools, .toast { display: none !important; }
-  body { height: auto; overflow: visible; background: #fff; }
-  .layout { display: block; }
-  .board { overflow: visible; background: none; height: auto; }
-  .board-wrap { overflow: visible; }
-  .topbar { border: none; }
-  .seat { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .topbar, .layout, .board-toolbar, .toast { display: none !important; }
+  body { height: auto; overflow: visible; background: #fff; display: block; }
+  .print-doc {
+    display: block; color: #2c2a26;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .pd-cover {
+    text-align: center; padding: 90px 0 70px; page-break-after: always;
+  }
+  .pd-ring { font-size: 56px; }
+  .pd-cover h1 {
+    font-family: 'Cormorant Garamond', serif; font-size: 46px; margin: 18px 0 6px;
+  }
+  .pd-date { font-size: 18px; color: #8a8378; margin: 0 0 18px; }
+  .pd-sub { font-size: 14px; color: #8a8378; }
+
+  .pd-section { margin: 0 8mm; }
+  .pd-section h2 {
+    font-family: 'Cormorant Garamond', serif; font-size: 28px;
+    border-bottom: 2px solid #e9d9b8; padding-bottom: 6px; margin: 0 0 18px;
+  }
+  .pd-break { page-break-before: always; }
+
+  .pd-grid { columns: 2; column-gap: 26px; }
+  .pd-table { break-inside: avoid; margin-bottom: 18px; }
+  .pd-table h3 {
+    font-family: 'Cormorant Garamond', serif; font-size: 20px; margin: 0 0 6px;
+    color: #2c2a26;
+  }
+  .pd-count { font-size: 12px; color: #c69749; font-family: 'Inter', sans-serif; }
+  .pd-table ol { margin: 0; padding-left: 0; list-style: none; }
+  .pd-table li { font-size: 13px; padding: 2px 0; }
+  .pd-seat {
+    display: inline-block; width: 18px; color: #c69749; font-weight: 600; font-size: 11px;
+  }
+  .pd-grp { color: #8a8378; font-size: 11px; }
+  .pd-empty { color: #b5ad9f; font-style: italic; }
+
+  .pd-index { columns: 2; column-gap: 30px; list-style: none; margin: 0; padding: 0; }
+  .pd-index li {
+    font-size: 13px; padding: 3px 0; break-inside: avoid;
+    display: flex; align-items: baseline; gap: 6px;
+  }
+  .pd-dots { flex: 1; border-bottom: 1px dotted #d8d0c2; }
 }
 
 /* ---------- Scrollbar ---------- */

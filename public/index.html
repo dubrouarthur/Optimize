@@ -22,8 +22,8 @@
     <div class="stats" id="stats"></div>
     <div class="actions">
       <button id="autoBtn" class="btn ghost" title="Remplir les places libres automatiquement">✨ Placer auto</button>
-      <button id="exportBtn" class="btn ghost" title="Télécharger le plan (CSV / Excel)">⬇️ Export</button>
-      <button id="printBtn" class="btn ghost" title="Imprimer / Exporter en PDF">🖨️ Imprimer</button>
+      <button id="exportBtn" class="btn ghost" title="Télécharger le plan (CSV / Excel)">⬇️ CSV</button>
+      <button id="pdfBtn" class="btn ghost" title="Générer un PDF du plan de table">📄 PDF</button>
     </div>
   </header>
 
@@ -82,6 +82,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Printable document (PDF) — generated on demand, hidden on screen -->
+  <div id="printDoc" class="print-doc" aria-hidden="true"></div>
 
   <!-- Toast -->
   <div id="toast" class="toast"></div>

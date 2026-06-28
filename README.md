@@ -11,15 +11,20 @@ visualisez la salle en un coup d'œil.
 - **Inscription des invités** en un clic, avec groupes colorés (famille, amis, collègues…).
 - **Import en masse** : collez une liste de noms (un par ligne) pour ajouter tout le monde d'un coup.
 - **Tables visuelles** rondes ou rectangulaires, avec chaises tout autour.
-- **Deux façons de placer** :
+- **Trois façons de remplir une chaise** :
   - **Glisser-déposer** un invité sur une chaise (placer, déplacer, échanger) ;
-  - **Clic-pour-placer** (idéal tactile/mobile) : on clique un invité, puis une chaise.
+  - **Clic-pour-placer** (idéal tactile/mobile) : on clique un invité, puis une chaise ;
+  - **Saisie directe sur la place** : on clique une chaise vide et on tape le nom — l'invité
+    est créé et assis d'un coup, puis le curseur passe à la chaise suivante (saisie en rafale).
+- **Taille de table réglable** : boutons +/− ou clic sur le nombre de places pour saisir
+  directement le total ; tables rondes ↔ rectangulaires.
 - **Plan de salle** : déplacez les tables où vous voulez sur le plan.
 - **Placement automatique** (✨) intelligent : remplit les places libres en gardant
   chaque groupe **à la même table** quand c'est possible.
 - **Filtre par groupe** et **recherche** instantanée dans la liste des invités.
 - **Compteurs en direct** : invités placés, tables, places libres.
-- **Export CSV/Excel** (⬇️) et **impression / export PDF** d'un beau plan prêt à afficher.
+- **Export CSV/Excel** (⬇️) et **export PDF** (📄) : un document élégant avec page de garde,
+  répartition par table et index alphabétique des invités → table.
 - **Responsive** : utilisable sur ordinateur, tablette et mobile.
 - **Sauvegarde automatique** dans une base de données **SQLite locale** (fichier `data.sqlite`).
   Tout reste sur votre machine, fonctionne hors-ligne.
@@ -59,13 +64,15 @@ L'app démarre avec `npm start` et écoute sur le port fourni par `process.env.P
 | Ajouter un invité | Saisir le nom + (groupe) → **Ajouter** |
 | Importer une liste | **⊕ Importer une liste** → coller les noms (un par ligne) |
 | Créer une table | **⊕ Table ronde / rectangle** dans la barre du plan |
+| Saisir un invité sur une place | Cliquer une chaise vide → taper le nom → Entrée (puis chaise suivante) |
 | Placer un invité (souris) | Glisser sa pastille depuis « À placer » vers une chaise |
 | Placer un invité (tactile) | Cliquer l'invité (il s'illumine) puis cliquer une chaise |
 | Déplacer / échanger | Glisser un invité d'une chaise à une autre |
 | Libérer une place | Clic sur l'invité assis (ou le glisser vers « À placer ») |
-| Renommer / +/- places / forme | Survoler une table → outils sous la table |
+| Régler le nombre de places | Survoler la table → +/− ou clic sur le nombre |
+| Renommer / forme | Survoler une table → outils sous la table |
 | Déplacer une table | Glisser le disque de la table sur le plan |
-| Exporter | **⬇️ Export** (CSV/Excel) ou **🖨️ Imprimer** (PDF) |
+| Exporter | **⬇️ CSV** (Excel) ou **📄 PDF** |
 
 ## Pile technique
 
