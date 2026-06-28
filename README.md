@@ -12,6 +12,11 @@ visualisez la salle en un coup d'œil.
   **les mêmes changements en direct**. Dès qu'un participant ajoute un invité, place
   quelqu'un ou modifie une table, l'écran de tout le monde se met à jour automatiquement
   (indicateur « ● En direct »). Aucune actualisation nécessaire.
+- **Fonctionne hors-ligne** : l'application **continue de marcher sans réseau** (sur le lieu
+  de réception, en sous-sol…). Vous pouvez ajouter et placer des invités, déplacer des
+  tables… ; tout est gardé localement et **se synchronise automatiquement** dès le retour
+  de la connexion (l'indicateur affiche « Hors ligne · N en attente » puis se resynchronise).
+  La page se charge même sans réseau (service worker).
 - **Inscription des invités** en un clic, avec groupes colorés (famille, amis, collègues…),
   **régime / allergies alimentaires** et notes par invité (badge 🍽️ et point rouge sur la chaise).
 - **Import Excel / CSV avec choix des colonnes** : déposez un fichier `.xlsx` ou `.csv`,

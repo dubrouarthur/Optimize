@@ -85,6 +85,8 @@ body {
 .live-dot.on::before {
   background: #6fae8f; animation: livePulse 2s ease-in-out infinite;
 }
+.live-dot.offline { color: #b8863a; }
+.live-dot.offline::before { background: #e9a23b; animation: none; }
 @keyframes livePulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(111,174,143,.45); }
   50% { box-shadow: 0 0 0 5px rgba(111,174,143,0); }

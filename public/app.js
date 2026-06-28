@@ -1,17 +1,97 @@
-// ---------- API ----------
+// ---------- Offline-capable data layer ----------
+// The app must keep working with no network: writes are applied locally and
+// queued in a persistent outbox that drains (loops) automatically once the
+// connection is back. Reads fall back to the last cached state.
+const LS_OUTBOX = 'pdt_outbox', LS_CACHE = 'pdt_cache', LS_IDMAP = 'pdt_idmap';
+let outbox = JSON.parse(localStorage.getItem(LS_OUTBOX) || '[]');
+let idMap = JSON.parse(localStorage.getItem(LS_IDMAP) || '{}');   // tempId -> realId
+let tmpSeq = 0;
+let netOnline = navigator.onLine;
+let flushing = false;
+
+const saveOutbox = () => localStorage.setItem(LS_OUTBOX, JSON.stringify(outbox));
+const saveIdMap = () => localStorage.setItem(LS_IDMAP, JSON.stringify(idMap));
+const saveCache = () => { try { localStorage.setItem(LS_CACHE, JSON.stringify(state)); } catch {} };
+// Negative numeric ids for entities created offline (so every === id comparison
+// in the app still works); remapped to the real id once the create is flushed.
+const tempId = () => -(Date.now() * 1000 + (++tmpSeq % 1000));
+
+function remapValue(v) { return (v != null && idMap[v] != null) ? idMap[v] : v; }
+function remapOp(op) {
+  let url = op.url;
+  for (const tid of Object.keys(idMap)) if (url.includes(tid)) url = url.split(tid).join(idMap[tid]);
+  let body = op.body ? { ...op.body } : op.body;
+  if (body) for (const k of ['table_id', 'group_id']) if (k in body) body[k] = remapValue(body[k]);
+  return { url, method: op.method, body };
+}
+
 const api = {
-  async get(url) { const r = await fetch(url); return r.json(); },
-  async send(method, url, body) {
-    const r = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    return r.json();
+  async get(url) { const r = await fetch(url, { cache: 'no-store' }); return r.json(); },
+  // Returns the server response when online, or an optimistic stub when offline.
+  // `stub` lets a POST return a locally-created entity (with a temp id).
+  async send(method, url, body, stub) {
+    if (netOnline) {
+      try {
+        const r = await fetch(url, {
+          method, headers: { 'Content-Type': 'application/json' },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        if (r.ok) return r.json().catch(() => ({}));
+        // HTTP error while online: surface it, don't queue (avoids infinite retry)
+        return r.json().catch(() => ({}));
+      } catch { setOnline(false); /* network dropped → fall through to queue */ }
+    }
+    // Offline: queue the op and return the optimistic stub
+    outbox.push({ method, url, body, tempId: stub ? stub.id : undefined });
+    saveOutbox();
+    scheduleFlush();
+    return stub || { ok: true, offline: true };
   },
 };
 
-let state = { settings: {}, groups: [], tables: [], guests: [] };
+async function flushOutbox() {
+  if (flushing || !navigator.onLine || !outbox.length) return;
+  flushing = true;
+  try {
+    while (outbox.length) {
+      const op = outbox[0];
+      const { url, method, body } = remapOp(op);
+      const r = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!r.ok && r.status >= 500) throw new Error('server ' + r.status);
+      const data = await r.json().catch(() => ({}));
+      if (op.tempId && data && data.id != null) { idMap[op.tempId] = data.id; saveIdMap(); }
+      outbox.shift(); saveOutbox();
+    }
+    setOnline(true);
+  } catch {
+    setOnline(false);            // stay queued, retry on next trigger
+  } finally {
+    flushing = false;
+  }
+  updateSyncBadge();
+}
+
+let flushTimer = null;
+function scheduleFlush() {
+  updateSyncBadge();
+  if (flushTimer) return;
+  flushTimer = setTimeout(async () => {
+    flushTimer = null;
+    await flushOutbox();
+    if (outbox.length && navigator.onLine) scheduleFlush();   // keep looping until drained
+    else if (outbox.length) setTimeout(scheduleFlush, 5000);  // offline: retry later
+  }, 600);
+}
+
+window.addEventListener('online', async () => { setOnline(true); await flushOutbox(); await load(); });
+window.addEventListener('offline', () => setOnline(false));
+// Periodic safety net: retry draining the outbox
+setInterval(() => { if (outbox.length) scheduleFlush(); }, 15000);
+
+let state = { settings: {}, groups: [], tables: [], guests: [], decor: [] };
 let searchTerm = '';
 let filterGroup = 'all';        // 'all' | 'none' | <group id>
 let selectedGuestId = null;     // click-to-place selection
@@ -32,12 +112,53 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-// ---------- Load ----------
+// ---------- Load (resilient: never throws, uses cache offline) ----------
+let hasLoadedReal = false;
 async function load() {
-  state = await api.get('/api/state');
-  $('#eventTitle').value = state.settings.event_title || '';
-  $('#eventDate').value = state.settings.event_date || '';
+  if (navigator.onLine) {
+    try {
+      await flushOutbox();                       // push pending writes first
+      state = await api.get('/api/state');
+      if (!state.decor) state.decor = [];
+      hasLoadedReal = true;
+      saveCache();
+      setOnline(true);
+    } catch {
+      setOnline(false);
+      if (!hasLoadedReal) loadFromCache();        // keep optimistic state once we have real data
+    }
+  } else {
+    setOnline(false);
+    if (!hasLoadedReal) loadFromCache();
+  }
+  $('#eventTitle').value = state.settings?.event_title || '';
+  $('#eventDate').value = state.settings?.event_date || '';
   renderAll();
+  updateSyncBadge();
+}
+
+function loadFromCache() {
+  const c = localStorage.getItem(LS_CACHE);
+  if (c) { try { state = JSON.parse(c); if (!state.decor) state.decor = []; hasLoadedReal = true; } catch {} }
+}
+
+// ---------- Online / sync indicator ----------
+function setOnline(v) { netOnline = v; updateSyncBadge(); }
+function updateSyncBadge() {
+  const dot = $('#liveDot');
+  if (!dot) return;
+  if (!navigator.onLine || !netOnline) {
+    dot.classList.remove('on'); dot.classList.add('offline');
+    dot.textContent = outbox.length ? `Hors ligne · ${outbox.length} en attente` : 'Hors ligne';
+    dot.title = 'Hors ligne — vos changements seront synchronisés au retour du réseau';
+  } else if (outbox.length) {
+    dot.classList.remove('offline'); dot.classList.add('on');
+    dot.textContent = `Synchronisation… ${outbox.length}`;
+  } else {
+    dot.classList.remove('offline'); dot.classList.add('on');
+    dot.textContent = 'En direct';
+    dot.title = 'Synchronisé en direct';
+  }
 }
 
 function renderAll() {
@@ -186,8 +307,9 @@ poolEl.addEventListener('drop', async e => {
 async function unseat(id) {
   const g = state.guests.find(x => x.id === id);
   if (!g || g.table_id == null) return;
-  await api.send('PATCH', `/api/guests/${id}`, { table_id: null, seat_index: null });
   g.table_id = null; g.seat_index = null;
+  api.send('PATCH', `/api/guests/${id}`, { table_id: null, seat_index: null });
+  saveCache();
   renderAll();
 }
 
@@ -228,8 +350,10 @@ function renderGroups() {
 $('#addGroup').addEventListener('click', async () => {
   const palette = ['#e9a23b', '#7c9cbf', '#9d7cbf', '#6fae8f', '#d98484', '#c69749', '#8c9b6e'];
   const color = palette[state.groups.length % palette.length];
-  const g = await api.send('POST', '/api/groups', { name: 'Nouveau groupe', color });
+  const stub = { id: tempId(), name: 'Nouveau groupe', color };
+  const g = await api.send('POST', '/api/groups', { name: 'Nouveau groupe', color }, stub);
   state.groups.push(g);
+  saveCache();
   renderAll();
 });
 
@@ -545,27 +669,57 @@ function renderSeatList(term) {
   });
 }
 
+// Optimistic local seat assignment, mirroring the server's swap behaviour
+function applySeat(guestId, tableId, seatIndex) {
+  const g = state.guests.find(x => x.id === guestId); if (!g) return;
+  if (tableId != null && seatIndex != null) {
+    const occ = state.guests.find(x => x.table_id === tableId && x.seat_index === seatIndex && x.id !== guestId);
+    if (occ) { occ.table_id = g.table_id; occ.seat_index = g.seat_index; } // swap into mover's old seat
+  }
+  g.table_id = tableId; g.seat_index = seatIndex;
+}
+
+async function commitChange() {            // re-sync from server when online, else just re-render
+  if (navigator.onLine) await load();
+  else { renderAll(); updateSyncBadge(); }
+}
+
+// Some operations are computed on the server (auto-arrange, file import, restore…)
+// and can't run offline — ask the user to reconnect rather than failing silently.
+function requireOnline(actionName) {
+  if (navigator.onLine) return true;
+  toast(`« ${actionName} » nécessite une connexion internet`);
+  return false;
+}
+
 async function seatFromPopup(guestId) {
   if (!seatTarget) return;
   const { tableId, seatIndex } = seatTarget;
   $('#seatModal').hidden = true;
-  await api.send('PATCH', `/api/guests/${guestId}`, { table_id: tableId, seat_index: seatIndex });
-  await load();
+  applySeat(guestId, tableId, seatIndex);
+  api.send('PATCH', `/api/guests/${guestId}`, { table_id: tableId, seat_index: seatIndex });
+  await commitChange();
 }
 
 async function placeSelectedOn(tableId, seatIndex) {
   if (selectedGuestId == null) return;
   const id = selectedGuestId;
   selectGuest(null);
-  await api.send('PATCH', `/api/guests/${id}`, { table_id: tableId, seat_index: seatIndex });
-  await load();
+  applySeat(id, tableId, seatIndex);
+  api.send('PATCH', `/api/guests/${id}`, { table_id: tableId, seat_index: seatIndex });
+  await commitChange();
 }
 
 async function updateTable(id, patch) {
-  const t = await api.send('PATCH', `/api/tables/${id}`, patch);
-  const idx = state.tables.findIndex(x => x.id === id);
-  state.tables[idx] = t;
-  await load(); // reload in case seats were unseated when shrinking
+  const t = state.tables.find(x => x.id === id); if (!t) return;
+  const oldSeats = t.seats;
+  Object.assign(t, patch);
+  if (patch.seats != null && patch.seats < oldSeats) {  // mirror server: unseat overflow
+    state.guests.forEach(g => { if (g.table_id === id && g.seat_index >= patch.seats) { g.table_id = null; g.seat_index = null; } });
+  }
+  api.send('PATCH', `/api/tables/${id}`, patch);
+  await commitChange();
+  renderInspector();
 }
 
 // ---------- Table inspector ----------
@@ -651,19 +805,23 @@ function setupInspector() {
   $('#insDelete').addEventListener('click', async () => {
     const t = sel(); if (!t) return;
     if (!confirm(`Supprimer « ${t.name} » ?`)) return;
-    await api.send('DELETE', `/api/tables/${t.id}`);
+    state.tables = state.tables.filter(x => x.id !== t.id);
+    state.guests.forEach(g => { if (g.table_id === t.id) { g.table_id = null; g.seat_index = null; } });
+    api.send('DELETE', `/api/tables/${t.id}`);
     selectedTableId = null;
-    await load();
+    await commitChange();
   });
   $('#insClear').addEventListener('click', async () => {
     const t = sel(); if (!t) return;
     if (!confirm(`Renvoyer tous les invités de « ${t.name} » vers « À placer » ?`)) return;
-    await api.send('POST', `/api/tables/${t.id}/clear`);
-    await load();
+    state.guests.forEach(g => { if (g.table_id === t.id) { g.table_id = null; g.seat_index = null; } });
+    api.send('POST', `/api/tables/${t.id}/clear`);
+    await commitChange();
   });
   $('#insMoveTo').addEventListener('change', async e => {
     const t = sel(); const to = e.target.value;
     if (!t || !to) return;
+    if (!requireOnline('Déplacer les invités')) { e.target.value = ''; return; }
     const r = await api.send('POST', `/api/tables/${t.id}/move-to/${to}`);
     await load();
     toast(r.remaining ? `${r.moved} déplacé(s), ${r.remaining} sans place` : `${r.moved} invité(s) déplacé(s)`);
@@ -681,10 +839,11 @@ $('#board').addEventListener('pointerdown', e => {
 document.querySelectorAll('[data-add]').forEach(btn => {
   btn.addEventListener('click', async () => {
     const pos = defaultTablePos(state.tables.length);
-    const t = await api.send('POST', '/api/tables', {
-      shape: btn.dataset.add, seats: 8, x: pos.x, y: pos.y,
-    });
+    const shape = btn.dataset.add === 'rect' ? 'rect' : 'round';
+    const stub = { id: tempId(), name: `Table ${state.tables.length + 1}`, shape, seats: 8, x: pos.x, y: pos.y, color: null };
+    const t = await api.send('POST', '/api/tables', { shape, seats: 8, x: pos.x, y: pos.y }, stub);
     state.tables.push(t);
+    saveCache();
     renderStats();
     selectTable(t.id);
   });
@@ -696,7 +855,8 @@ document.querySelectorAll('[data-decor]').forEach(btn => {
     const board = $('#board');
     const x = (board.scrollLeft || 0) + Math.min(board.clientWidth, 400) / 2;
     const y = (board.scrollTop || 0) + 80;
-    const e = await api.send('POST', '/api/decor', { kind: btn.dataset.decor, x, y });
+    const stub = { id: tempId(), kind: btn.dataset.decor, x, y, size: 1, label: null };
+    const e = await api.send('POST', '/api/decor', { kind: btn.dataset.decor, x, y }, stub);
     if (!state.decor) state.decor = [];
     state.decor.push(e);
     selectDecor(e.id);
@@ -720,12 +880,14 @@ $('#guestForm').addEventListener('submit', async e => {
   const input = $('#guestName');
   const name = input.value.trim();
   if (!name) return;
-  const group_id = $('#guestGroup').value || null;
-  const g = await api.send('POST', '/api/guests', { name, group_id });
+  const group_id = $('#guestGroup').value ? +$('#guestGroup').value : null;
+  const stub = { id: tempId(), name, group_id, table_id: null, seat_index: null, diet: null, notes: null };
+  const g = await api.send('POST', '/api/guests', { name, group_id }, stub);
   state.guests.push(g);
   state.guests.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
   input.value = '';
   input.focus();
+  saveCache();
   renderPool();
   renderStats();
   renderGroups();
@@ -736,6 +898,7 @@ $('#search').addEventListener('input', e => { searchTerm = e.target.value; rende
 
 // ---------- Auto-arrange / unseat all ----------
 $('#autoBtn').addEventListener('click', async () => {
+  if (!requireOnline('Placer auto')) return;
   const r = await api.send('POST', '/api/auto-arrange');
   await load();
   toast(r.placed ? `${r.placed} invité(s) placé(s) automatiquement` +
@@ -744,8 +907,9 @@ $('#autoBtn').addEventListener('click', async () => {
 
 $('#unseatAll').addEventListener('click', async () => {
   if (!confirm('Libérer tous les invités de leurs tables ?')) return;
-  await api.send('POST', '/api/unseat-all');
-  await load();
+  state.guests.forEach(g => { g.table_id = null; g.seat_index = null; });
+  api.send('POST', '/api/unseat-all');
+  await commitChange();
 });
 
 function printAs(mode, build) {
@@ -890,6 +1054,7 @@ $('#importBtn').addEventListener('click', () => {
 $('#importConfirm').addEventListener('click', async () => {
   const names = $('#importText').value.split('\n').map(s => s.trim()).filter(Boolean);
   if (!names.length) { modal.hidden = true; return; }
+  if (!requireOnline('Importer')) return;
   const group_id = $('#importGroup').value || null;
   const r = await api.send('POST', '/api/guests/bulk', { names, group_id });
   state.guests = r.guests;
@@ -911,6 +1076,7 @@ const MAP_FIELDS = [
 $('#impFile').addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
+  if (!requireOnline('Import de fichier')) { e.target.value = ''; return; }
   try {
     const dataBase64 = await readFileBase64(file);
     const r = await fetch('/api/import/parse', {
@@ -981,6 +1147,7 @@ function renderPreview() {
 $('#impCommit').addEventListener('click', async () => {
   const map = currentMap();
   if (map.name == null || map.name < 0) { toast('Choisissez la colonne « Nom »'); return; }
+  if (!requireOnline('Importer')) return;
   const r = await api.send('POST', '/api/import/commit', { rows: dataRows(), map });
   modal.hidden = true;
   await load();
@@ -994,6 +1161,7 @@ $('#restoreLink').addEventListener('click', () => $('#restoreFile').click());
 $('#restoreFile').addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
+  if (!requireOnline('Restaurer')) { e.target.value = ''; return; }
   if (!confirm('Restaurer cette sauvegarde remplacera TOUT le plan actuel. Continuer ?')) {
     e.target.value = ''; return;
   }
@@ -1022,10 +1190,12 @@ const seatAddNew = async () => {
   const name = $('#seatNewName').value.trim();
   if (!name || !seatTarget) return;
   const { tableId, seatIndex } = seatTarget;
-  const group_id = $('#guestGroup').value || null;
+  const group_id = $('#guestGroup').value ? +$('#guestGroup').value : null;
   seatModal.hidden = true;
-  await api.send('POST', '/api/guests', { name, group_id, table_id: tableId, seat_index: seatIndex });
-  await load();
+  const stub = { id: tempId(), name, group_id, table_id: tableId, seat_index: seatIndex, diet: null, notes: null };
+  state.guests.push(stub);
+  api.send('POST', '/api/guests', { name, group_id, table_id: tableId, seat_index: seatIndex }, stub);
+  await commitChange();
 };
 $('#seatNewAdd').addEventListener('click', seatAddNew);
 $('#seatNewName').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); seatAddNew(); } });
@@ -1043,6 +1213,7 @@ resetModal.addEventListener('click', e => {
 $('#resetAck').addEventListener('change', e => { $('#resetConfirm').disabled = !e.target.checked; });
 $('#resetConfirm').addEventListener('click', async () => {
   if (!$('#resetAck').checked) return;
+  if (!requireOnline('Réinitialiser')) return;
   // Second verification
   if (!confirm('Dernière confirmation : supprimer définitivement TOUT le plan ?')) return;
   await api.send('POST', '/api/reset');
@@ -1068,19 +1239,23 @@ function openGuestEditor(id) {
 }
 $('#geSave').addEventListener('click', async () => {
   if (editingGuestId == null) return;
-  await api.send('PATCH', `/api/guests/${editingGuestId}`, {
-    name: $('#geName').value, group_id: $('#geGroup').value || null,
+  const patch = {
+    name: $('#geName').value.trim(), group_id: $('#geGroup').value ? +$('#geGroup').value : null,
     diet: $('#geDiet').value, notes: $('#geNotes').value,
-  });
+  };
+  const g = state.guests.find(x => x.id === editingGuestId);
+  if (g) { g.name = patch.name || g.name; g.group_id = patch.group_id; g.diet = patch.diet || null; g.notes = patch.notes || null; }
+  api.send('PATCH', `/api/guests/${editingGuestId}`, patch);
   guestModal.hidden = true;
-  await load();
+  await commitChange();
 });
 $('#geDelete').addEventListener('click', async () => {
   if (editingGuestId == null) return;
   if (!confirm('Supprimer cet invité ?')) return;
-  await api.send('DELETE', `/api/guests/${editingGuestId}`);
+  state.guests = state.guests.filter(x => x.id !== editingGuestId);
+  api.send('DELETE', `/api/guests/${editingGuestId}`);
   guestModal.hidden = true;
-  await load();
+  await commitChange();
 });
 
 document.addEventListener('keydown', e => {
@@ -1166,18 +1341,17 @@ const applyRemote = debounce(async () => {
   await load();
 }, 250);
 
-function setLive(on) {
-  const dot = $('#liveDot');
-  dot.classList.toggle('on', on);
-  dot.title = on ? 'Synchronisé en direct avec les autres participants' : 'Reconnexion…';
-}
-
 function connectLive() {
   const es = new EventSource('/api/events');
-  es.addEventListener('hello', () => setLive(true));
+  es.addEventListener('hello', () => setOnline(true));
   es.addEventListener('changed', () => { pendingRemote = true; applyRemote(); });
-  es.onopen = () => setLive(true);
-  es.onerror = () => setLive(false); // EventSource auto-reconnects
+  es.onopen = () => { setOnline(true); flushOutbox(); };
+  es.onerror = () => updateSyncBadge();   // EventSource auto-reconnects; keep status accurate
+}
+
+// Register the service worker so the app shell loads even with no network
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
 load().then(connectLive);
