@@ -645,14 +645,17 @@ body.swapping .seat.empty { animation: pulse 1.3s ease-in-out infinite; border-c
   .btn, .link-btn { -webkit-tap-highlight-color: transparent; }
 }
 
-/* ---------- Printable document (PDF) ---------- */
-.print-doc { display: none; }
+/* ---------- Printable documents (PDF / Poster) ---------- */
+.print-doc, .poster-doc { display: none; }
 
 @media print {
-  .topbar, .layout, .board-toolbar, .toast { display: none !important; }
+  .topbar, .layout, .board-toolbar, .toast, .tabbar, .inspector { display: none !important; }
   body { height: auto; overflow: visible; background: #fff; display: block; }
+  /* Show only the document matching the chosen print mode */
+  body.print-pdf .print-doc { display: block; }
+  body.print-poster .poster-doc { display: block; }
   .print-doc {
-    display: block; color: #2c2a26;
+    color: #2c2a26;
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
@@ -706,6 +709,48 @@ body.swapping .seat.empty { animation: pulse 1.3s ease-in-out infinite; border-c
     cursor: default; transform: none !important;
   }
   .pd-visual .seat { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* ---------- Poster (affiche) ---------- */
+  @page { margin: 0; }
+  body.print-poster { background: #fff; }
+  .poster-doc {
+    color: #3a342a; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .po-frame {
+    min-height: 100vh; padding: 16mm; margin: 0;
+    background:
+      radial-gradient(1200px 500px at 50% -5%, #fbf3e3 0%, transparent 60%),
+      linear-gradient(180deg, #fffdf8, #faf4e8);
+    border: 2px solid #c69749; outline: 1px solid #e9d9b8; outline-offset: 5px;
+    box-sizing: border-box;
+  }
+  .po-head { text-align: center; margin-bottom: 12mm; }
+  .po-flourish { font-size: 30px; color: #c69749; }
+  .po-couple {
+    font-family: 'Great Vibes', cursive; font-weight: 400;
+    font-size: 64px; line-height: 1.1; margin: 4px 0; color: #2c2a26;
+  }
+  .po-date { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: #8a7d63; }
+  .po-sub {
+    font-family: 'Cormorant Garamond', serif; font-size: 16px; letter-spacing: 3px;
+    text-transform: uppercase; color: #b09a6a; margin-top: 6px;
+  }
+  .po-grid { columns: 3; column-gap: 14mm; }
+  .po-table { break-inside: avoid; text-align: center; margin-bottom: 11mm; }
+  .po-tname {
+    font-family: 'Great Vibes', cursive; font-weight: 400;
+    font-size: 30px; color: #b8863a; margin: 0 0 2px;
+  }
+  .po-rule {
+    display: block; width: 46px; height: 1px; margin: 4px auto 8px;
+    background: #d8c39a;
+  }
+  .po-names { list-style: none; margin: 0; padding: 0; }
+  .po-names li {
+    font-family: 'Cormorant Garamond', serif; font-size: 17px; line-height: 1.6;
+    color: #3a342a;
+  }
+  .po-empty { color: #c9bfa6; }
 }
 
 /* ---------- Scrollbar ---------- */

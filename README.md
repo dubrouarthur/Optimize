@@ -45,6 +45,8 @@ visualisez la salle en un coup d'œil.
 - **Export CSV/Excel** (⬇️) — avec colonnes Régime/Allergies et Notes.
 - **Export PDF** (📄) soigné : page de garde, **plan visuel des tables**, répartition par table,
   index alphabétique des invités → table, et **récapitulatif des régimes & allergies** (pour le traiteur).
+- **Affiche élégante** (🖼️) : une belle affiche à imprimer/encadrer, avec une **calligraphie
+  de mariage**, cadre doré, et **uniquement les noms regroupés par table**.
 - **Mobile-first** : sur téléphone, deux onglets en bas de l'écran (**👥 Invités** / **🪑 Plan
   de table**) ; sur ordinateur, la liste et le plan s'affichent côte à côte.
 - **Tout réinitialiser** (🗑️) avec **double vérification** (case à cocher + confirmation finale)

@@ -748,7 +748,42 @@ $('#unseatAll').addEventListener('click', async () => {
   await load();
 });
 
-$('#pdfBtn').addEventListener('click', () => { buildPrintDoc(); window.print(); });
+function printAs(mode, build) {
+  build();
+  document.body.classList.add('print-' + mode);
+  const cleanup = () => { document.body.classList.remove('print-' + mode); window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  window.print();
+  setTimeout(cleanup, 1500); // fallback if afterprint doesn't fire
+}
+$('#pdfBtn').addEventListener('click', () => printAs('pdf', buildPrintDoc));
+$('#posterBtn').addEventListener('click', () => printAs('poster', buildPoster));
+
+// ---------- Beautiful poster (names only, by table, wedding script) ----------
+function buildPoster() {
+  const title = $('#eventTitle').value || 'Notre mariage';
+  const date = $('#eventDate').value || '';
+  const tablesHtml = state.tables.map(t => {
+    const names = guestsOfTable(t.id)
+      .sort((a, b) => a.seat_index - b.seat_index)
+      .map(g => `<li>${esc(g.name)}</li>`).join('');
+    return `<div class="po-table">
+      <h2 class="po-tname">${esc(t.name)}</h2>
+      <span class="po-rule"></span>
+      <ul class="po-names">${names || '<li class="po-empty">—</li>'}</ul>
+    </div>`;
+  }).join('');
+  $('#posterDoc').innerHTML = `
+    <div class="po-frame">
+      <header class="po-head">
+        <div class="po-flourish">&#10086;</div>
+        <h1 class="po-couple">${esc(title)}</h1>
+        ${date ? `<div class="po-date">${esc(date)}</div>` : ''}
+        <div class="po-sub">~ Plan de table ~</div>
+      </header>
+      <div class="po-grid">${tablesHtml || '<p style="text-align:center">Aucune table.</p>'}</div>
+    </div>`;
+}
 $('#exportBtn').addEventListener('click', () => { window.location.href = '/api/export.csv'; });
 
 // ---------- Printable PDF document ----------

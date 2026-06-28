@@ -6,7 +6,7 @@
   <title>Plan de table</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&family=Great+Vibes&family=Parisienne&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -25,6 +25,7 @@
       <button id="autoBtn" class="btn ghost" title="Remplir les places libres automatiquement">✨ Placer auto</button>
       <button id="saveBtn" class="btn ghost" title="Sauvegarder tout le plan (fichier .json à recharger plus tard)">💾 Sauvegarder</button>
       <button id="exportBtn" class="btn ghost" title="Télécharger le plan (CSV / Excel)">⬇️ CSV</button>
+      <button id="posterBtn" class="btn ghost" title="Générer une belle affiche (noms par table)">🖼️ Affiche</button>
       <button id="pdfBtn" class="btn ghost" title="Générer un PDF du plan de table">📄 PDF</button>
       <button id="resetBtn" class="btn ghost danger" title="Tout effacer et repartir de zéro">🗑️ Réinitialiser</button>
     </div>
@@ -233,6 +234,9 @@
 
   <!-- Printable document (PDF) — generated on demand, hidden on screen -->
   <div id="printDoc" class="print-doc" aria-hidden="true"></div>
+
+  <!-- Printable poster (Affiche) — generated on demand, hidden on screen -->
+  <div id="posterDoc" class="poster-doc" aria-hidden="true"></div>
 
   <!-- Toast -->
   <div id="toast" class="toast"></div>
