@@ -224,8 +224,8 @@ h2 {
 .board-scroll { position: relative; flex: 1; min-height: 0; display: flex; }
 .board {
   flex: 1; position: relative; overflow: auto;
-  background-image: radial-gradient(var(--line) 1px, transparent 1px);
-  background-size: 26px 26px;
+  display: flex; flex-wrap: wrap; align-content: flex-start;
+  gap: 22px; padding: 24px;
 }
 
 .board-empty {
@@ -236,24 +236,30 @@ h2 {
 .board-empty-ring { font-size: 54px; color: var(--gold-soft); }
 .board-empty p { font-size: 14px; line-height: 1.6; }
 
-/* ---------- Table ---------- */
-.table {
-  position: absolute;
-  display: flex; flex-direction: column; align-items: center;
+/* ---------- Table cards ---------- */
+.table-card {
+  align-self: flex-start;
+  background: #fff; border: 1px solid var(--line); border-radius: 18px;
+  padding: 18px; box-shadow: var(--shadow-sm); cursor: pointer;
+  transition: box-shadow .15s, border-color .15s, transform .15s;
 }
+.table-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+.table-card.selected {
+  border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft), var(--shadow);
+}
+.table-stage { position: relative; margin: 0 auto; }
+
 .table-disc {
-  position: relative;
+  position: absolute;
   display: flex; align-items: center; justify-content: center;
   text-align: center;
   background: linear-gradient(160deg, #ffffff, #fbf6ec);
   border: 1.5px solid var(--gold-soft);
-  box-shadow: var(--shadow);
-  cursor: grab;
+  box-shadow: var(--shadow-sm);
+  z-index: 1; pointer-events: none;
 }
 .table-disc.round { border-radius: 50%; }
 .table-disc.rect { border-radius: 14px; }
-.table-disc:active { cursor: grabbing; }
-.table-disc { z-index: 1; }
 .table-label {
   font-family: 'Cormorant Garamond', serif; font-weight: 600;
   font-size: 16px; color: var(--ink); line-height: 1.15;
@@ -345,6 +351,21 @@ body.placing .seat.empty {
 }
 .segmented button + button { border-left: 1px solid var(--line); }
 .segmented button.active { background: var(--gold); color: #fff; }
+
+.insp-field-bg { align-items: flex-start; }
+.swatches { display: flex; flex-wrap: wrap; gap: 7px; max-width: 230px; justify-content: flex-end; }
+.swatch {
+  width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
+  border: 1.5px solid rgba(0,0,0,.08); padding: 0; transition: transform .1s;
+  position: relative;
+}
+.swatch:hover { transform: scale(1.12); }
+.swatch.active { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--gold); }
+.swatch.none { background: #fff; }
+.swatch.none::after {
+  content: ''; position: absolute; inset: 6px;
+  background: linear-gradient(160deg, #fff, #fbf6ec); border-radius: 50%;
+}
 
 .insp-actions { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; }
 .insp-del {

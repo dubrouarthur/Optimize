@@ -14,16 +14,18 @@ visualisez la salle en un coup d'œil.
   (indicateur « ● En direct »). Aucune actualisation nécessaire.
 - **Inscription des invités** en un clic, avec groupes colorés (famille, amis, collègues…).
 - **Import en masse** : collez une liste de noms (un par ligne) pour ajouter tout le monde d'un coup.
-- **Tables visuelles** rondes ou rectangulaires, avec chaises tout autour.
+- **Plan en grille nette** : les tables s'alignent automatiquement dans une grille
+  responsive — elles ne se chevauchent jamais et restent toujours lisibles.
+- **Tables visuelles** rondes ou rectangulaires, avec chaises tout autour, de
+  **2 à 100 places** (les chaises et la table s'adaptent automatiquement à la taille).
 - **Trois façons de remplir une chaise** :
   - **Glisser-déposer** un invité sur une chaise (placer, déplacer, échanger) ;
   - **Clic-pour-placer** (idéal tactile/mobile) : on clique un invité, puis une chaise ;
   - **Saisie directe sur la place** : on clique une chaise vide et on tape le nom — l'invité
     est créé et assis d'un coup, puis le curseur passe à la chaise suivante (saisie en rafale).
-- **Édition de table en un clic** : cliquez une table pour ouvrir un panneau clair
-  (nom, **nombre de places** réglable au stepper ou en saisie directe, forme
-  ronde ↔ rectangulaire, suppression).
-- **Plan de salle** : déplacez les tables où vous voulez sur le plan.
+- **Édition de table en un clic** : cliquez une table pour ouvrir un panneau clair —
+  nom, **nombre de places** (stepper ou saisie directe, jusqu'à 100), forme
+  ronde ↔ rectangulaire, **couleur d'arrière-plan** (palette élégante), suppression.
 - **Placement automatique** (✨) intelligent : remplit les places libres en gardant
   chaque groupe **à la même table** quand c'est possible.
 - **Filtre par groupe** et **recherche** instantanée dans la liste des invités.
@@ -74,9 +76,9 @@ L'app démarre avec `npm start` et écoute sur le port fourni par `process.env.P
 | Placer un invité (tactile) | Cliquer l'invité (il s'illumine) puis cliquer une chaise |
 | Déplacer / échanger | Glisser un invité d'une chaise à une autre |
 | Libérer une place | Clic sur l'invité assis (ou le glisser vers « À placer ») |
-| Modifier une table | **Cliquer la table** → panneau d'édition (nom, places, forme, suppression) |
-| Régler le nombre de places | Dans le panneau : boutons +/− ou saisie directe du nombre |
-| Déplacer une table | Glisser le disque de la table sur le plan |
+| Modifier une table | **Cliquer la table** → panneau (nom, places, forme, arrière-plan, suppression) |
+| Régler le nombre de places | Dans le panneau : boutons +/− ou saisie directe (jusqu'à 100) |
+| Changer la couleur de table | Dans le panneau : choisir une pastille d'« Arrière-plan » |
 | Exporter | **⬇️ CSV** (Excel) ou **📄 PDF** |
 
 ## Pile technique

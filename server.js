@@ -98,18 +98,25 @@ app.delete('/api/groups/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+const MAX_SEATS = 100;
+const clampSeats = (v, fallback) => {
+  const n = parseInt(v);
+  return isNaN(n) ? fallback : Math.max(1, Math.min(MAX_SEATS, n));
+};
+
 // ---------- Tables ----------
 app.post('/api/tables', (req, res) => {
-  const { name, shape, seats, x, y } = req.body;
+  const { name, shape, seats, x, y, color } = req.body;
   const count = db.prepare(`SELECT COUNT(*) c FROM tables`).get().c;
   const info = db.prepare(
-    `INSERT INTO tables (name, shape, seats, x, y) VALUES (?, ?, ?, ?, ?)`
+    `INSERT INTO tables (name, shape, seats, x, y, color) VALUES (?, ?, ?, ?, ?, ?)`
   ).run(
     (name || `Table ${count + 1}`).trim(),
     shape === 'rect' ? 'rect' : 'round',
-    Math.max(1, Math.min(20, parseInt(seats) || 8)),
+    clampSeats(seats, 8),
     x ?? 60 + (count % 4) * 250,
-    y ?? 60 + Math.floor(count / 4) * 260
+    y ?? 60 + Math.floor(count / 4) * 260,
+    color || null
   );
   res.json(db.prepare(`SELECT * FROM tables WHERE id = ?`).get(info.lastInsertRowid));
 });
@@ -117,8 +124,8 @@ app.post('/api/tables', (req, res) => {
 app.patch('/api/tables/:id', (req, res) => {
   const cur = db.prepare(`SELECT * FROM tables WHERE id = ?`).get(req.params.id);
   if (!cur) return res.status(404).json({ error: 'introuvable' });
-  const { name, shape, seats, x, y } = req.body;
-  const newSeats = seats != null ? Math.max(1, Math.min(20, parseInt(seats))) : cur.seats;
+  const { name, shape, seats, x, y, color } = req.body;
+  const newSeats = seats != null ? clampSeats(seats, cur.seats) : cur.seats;
   // If shrinking, unseat guests sitting beyond the new seat count
   if (newSeats < cur.seats) {
     db.prepare(
@@ -126,13 +133,14 @@ app.patch('/api/tables/:id', (req, res) => {
        WHERE table_id = ? AND seat_index >= ?`
     ).run(req.params.id, newSeats);
   }
-  db.prepare(`UPDATE tables SET name = ?, shape = ?, seats = ?, x = ?, y = ? WHERE id = ?`)
+  db.prepare(`UPDATE tables SET name = ?, shape = ?, seats = ?, x = ?, y = ?, color = ? WHERE id = ?`)
     .run(
       name ?? cur.name,
       shape ?? cur.shape,
       newSeats,
       x ?? cur.x,
       y ?? cur.y,
+      color !== undefined ? (color || null) : cur.color,
       req.params.id
     );
   res.json(db.prepare(`SELECT * FROM tables WHERE id = ?`).get(req.params.id));

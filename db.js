@@ -44,7 +44,8 @@ db.exec(`
     shape TEXT NOT NULL DEFAULT 'round',   -- 'round' | 'rect'
     seats INTEGER NOT NULL DEFAULT 8,
     x     REAL NOT NULL DEFAULT 80,
-    y     REAL NOT NULL DEFAULT 80
+    y     REAL NOT NULL DEFAULT 80,
+    color TEXT                             -- optional background tint (hex)
   );
 
   CREATE TABLE IF NOT EXISTS guests (
@@ -55,6 +56,12 @@ db.exec(`
     seat_index INTEGER
   );
 `);
+
+// Lightweight migrations for databases created by older versions
+const tableCols = db.prepare(`PRAGMA table_info(tables)`).all().map(c => c.name);
+if (!tableCols.includes('color')) {
+  db.exec(`ALTER TABLE tables ADD COLUMN color TEXT`);
+}
 
 // Seed defaults on first run
 const seeded = db.prepare(`SELECT value FROM settings WHERE key = 'seeded'`).get();

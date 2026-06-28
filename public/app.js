@@ -16,7 +16,6 @@ let searchTerm = '';
 let filterGroup = 'all';        // 'all' | 'none' | <group id>
 let selectedGuestId = null;     // click-to-place selection
 let selectedTableId = null;     // table being edited in the inspector
-let draggingTable = false;      // true while a table is being dragged
 
 const $ = (s, el = document) => el.querySelector(s);
 const groupById = (id) => state.groups.find(g => g.id === id);
@@ -225,24 +224,50 @@ function renderBoard() {
 
 function buildTable(t) {
   const seated = guestsOfTable(t.id);
-  const wrap = document.createElement('div');
-  wrap.className = 'table';
-  wrap.style.left = t.x + 'px';
-  wrap.style.top = t.y + 'px';
-
   const filled = seated.length;
   const geo = tableGeometry(t);
+  const S = geo.seatSize;
+
+  // Size the stage so the disc + all seats fit, then centre everything in it.
+  let ex = geo.w / 2, ey = geo.h / 2;
+  for (let i = 0; i < t.seats; i++) {
+    const p = geo.seatPos(i);
+    ex = Math.max(ex, Math.abs(p.x) + S / 2);
+    ey = Math.max(ey, Math.abs(p.y) + S / 2);
+  }
+  const stageW = Math.ceil(ex * 2) + 6;
+  const stageH = Math.ceil(ey * 2) + 6;
+  const cx = stageW / 2, cy = stageH / 2;
+
+  const card = document.createElement('div');
+  card.className = 'table-card' + (t.id === selectedTableId ? ' selected' : '');
+  card.title = 'Cliquer pour modifier la table';
+  card.addEventListener('mousedown', e => {
+    if (e.target.closest('.seat')) return;
+    selectTable(t.id);
+  });
+
+  const stage = document.createElement('div');
+  stage.className = 'table-stage';
+  stage.style.width = stageW + 'px';
+  stage.style.height = stageH + 'px';
 
   const disc = document.createElement('div');
   disc.className = `table-disc ${t.shape}`;
   disc.style.width = geo.w + 'px';
   disc.style.height = geo.h + 'px';
+  disc.style.left = (cx - geo.w / 2) + 'px';
+  disc.style.top = (cy - geo.h / 2) + 'px';
+  if (t.color) {
+    disc.style.background = `linear-gradient(160deg, #ffffff, ${t.color})`;
+    disc.style.borderColor = shade(t.color, -18);
+  }
   disc.innerHTML = `<div>
       <div class="table-label">${esc(t.name)}</div>
       <div class="table-sub">${filled}/${t.seats}</div>
     </div>`;
+  stage.appendChild(disc);
 
-  // Seats
   for (let i = 0; i < t.seats; i++) {
     const pos = geo.seatPos(i);
     const occupant = seated.find(g => g.seat_index === i);
@@ -250,8 +275,11 @@ function buildTable(t) {
     seat.className = 'seat ' + (occupant ? 'filled' : 'empty');
     seat.dataset.table = t.id;
     seat.dataset.seat = i;
-    seat.style.left = (geo.w / 2 + pos.x) + 'px';
-    seat.style.top = (geo.h / 2 + pos.y) + 'px';
+    seat.style.left = (cx + pos.x) + 'px';
+    seat.style.top = (cy + pos.y) + 'px';
+    seat.style.width = seat.style.height = S + 'px';
+    seat.style.marginLeft = seat.style.marginTop = (-S / 2) + 'px';
+    if (S < 38) seat.style.fontSize = '8px';
     if (occupant) {
       const grp = groupById(occupant.group_id);
       seat.style.background = grp ? hexToTint(grp.color) : '#fff';
@@ -270,46 +298,47 @@ function buildTable(t) {
       });
     }
     bindSeatDrop(seat, t.id, i);
-    wrap.appendChild(seat);
+    stage.appendChild(seat);
   }
 
-  wrap.appendChild(disc);
-
-  if (t.id === selectedTableId) wrap.classList.add('selected');
-  disc.title = 'Cliquer pour modifier · glisser pour déplacer';
-
-  // Drag to move; a click without movement opens the inspector
-  enableTableDrag(wrap, disc, t, () => selectTable(t.id));
-  return wrap;
+  card.appendChild(stage);
+  return card;
 }
 
-// Geometry: returns disc size + seat positions relative to disc center
+// Geometry: disc size, seat size and seat positions. Seats shrink and the table
+// grows as the seat count rises, so even large tables (up to 100) stay tidy and
+// never overlap.
 function tableGeometry(t) {
+  const n = Math.max(1, t.seats);
+  const seatSize = Math.round(Math.max(24, Math.min(46, 46 - (n - 8) * 0.5)));
+  const gap = 6;
+
   if (t.shape === 'rect') {
-    const perSide = Math.ceil(t.seats / 2);
-    const w = Math.max(150, perSide * 56 + 28);
-    const h = 96;
+    const perSide = Math.ceil(n / 2);
+    const w = Math.max(140, perSide * (seatSize + 10) + 24);
+    const h = Math.max(70, seatSize + 44);
     return {
-      w, h,
+      w, h, seatSize,
       seatPos(i) {
         const top = i < perSide;
         const idx = top ? i : i - perSide;
-        const countThisSide = top ? perSide : t.seats - perSide;
-        const gap = w / (countThisSide + 1);
-        const x = -w / 2 + gap * (idx + 1);
-        const y = top ? -(h / 2 + 30) : (h / 2 + 30);
+        const countThisSide = top ? perSide : n - perSide;
+        const span = w / (countThisSide + 1);
+        const x = -w / 2 + span * (idx + 1);
+        const y = top ? -(h / 2 + seatSize / 2 + 6) : (h / 2 + seatSize / 2 + 6);
         return { x, y };
       },
     };
   }
-  // round
-  const d = Math.max(118, Math.min(230, 70 + t.seats * 11));
-  const r = d / 2 + 32;
+
+  // round: ring radius large enough that all seats fit without overlap
+  const ringR = Math.max(70, (n * (seatSize + gap)) / (2 * Math.PI));
+  const d = Math.max(90, 2 * (ringR - seatSize / 2 - 10));
   return {
-    w: d, h: d,
+    w: d, h: d, seatSize,
     seatPos(i) {
-      const a = (i / t.seats) * Math.PI * 2 - Math.PI / 2;
-      return { x: Math.cos(a) * r, y: Math.sin(a) * r };
+      const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+      return { x: Math.cos(a) * ringR, y: Math.sin(a) * ringR };
     },
   };
 }
@@ -382,36 +411,18 @@ async function updateTable(id, patch) {
   await load(); // reload in case seats were unseated when shrinking
 }
 
-// Drag a table around the board; onClick fires on a press without movement.
-function enableTableDrag(wrap, handle, t, onClick) {
-  let startX, startY, origX, origY, moved = false;
-  handle.addEventListener('mousedown', e => {
-    if (e.target.closest('.seat')) return;
-    e.preventDefault();
-    moved = false;
-    startX = e.clientX; startY = e.clientY;
-    origX = t.x; origY = t.y;
-    const onMove = ev => {
-      const dx = ev.clientX - startX, dy = ev.clientY - startY;
-      if (Math.abs(dx) + Math.abs(dy) > 3) { moved = true; draggingTable = true; }
-      t.x = Math.max(0, origX + dx);
-      t.y = Math.max(0, origY + dy);
-      wrap.style.left = t.x + 'px';
-      wrap.style.top = t.y + 'px';
-    };
-    const onUp = async () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      draggingTable = false;
-      if (moved) await api.send('PATCH', `/api/tables/${t.id}`, { x: t.x, y: t.y });
-      else if (onClick) onClick();
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  });
-}
-
 // ---------- Table inspector ----------
+const TABLE_BG = [
+  null,        // défaut (crème)
+  '#f3d9d6',   // rose poudré
+  '#f6e7c4',   // sable doré
+  '#d9e7e2',   // eucalyptus
+  '#dfe3ef',   // bleu nuage
+  '#e7dcef',   // lavande
+  '#e3ead4',   // sauge
+  '#f6dcc0',   // terracotta
+];
+
 function selectTable(id) {
   selectedTableId = id;
   renderBoard();
@@ -427,6 +438,21 @@ function renderInspector() {
   $('#insSeats').value = t.seats;
   $('#insShape').querySelectorAll('button').forEach(b =>
     b.classList.toggle('active', b.dataset.shape === t.shape));
+
+  const sw = $('#insColor');
+  sw.innerHTML = TABLE_BG.map(c => {
+    const active = (c || null) === (t.color || null) ? ' active' : '';
+    const cls = c ? '' : ' none';
+    const style = c ? ` style="background:${c}"` : '';
+    return `<button type="button" class="swatch${cls}${active}" data-color="${c || ''}"
+              title="${c ? 'Fond coloré' : 'Défaut'}"${style}></button>`;
+  }).join('');
+  sw.querySelectorAll('.swatch').forEach(b =>
+    b.addEventListener('click', () => {
+      const t2 = state.tables.find(x => x.id === selectedTableId);
+      if (!t2) return;
+      updateTable(t2.id, { color: b.dataset.color || null });
+    }));
 }
 
 // Wire inspector controls once
@@ -435,7 +461,7 @@ function setupInspector() {
   const seatsInput = $('#insSeats');
   const commitSeats = (v) => {
     const t = sel(); if (!t) return;
-    const n = Math.max(1, Math.min(30, parseInt(v) || t.seats));
+    const n = Math.max(1, Math.min(100, parseInt(v) || t.seats));
     if (n !== t.seats) updateTable(t.id, { seats: n });
     else seatsInput.value = t.seats;
   };
@@ -619,6 +645,14 @@ function hexToTint(hex) {
   const r = parseInt(c.substr(0, 2), 16), g = parseInt(c.substr(2, 2), 16), b = parseInt(c.substr(4, 2), 16);
   return `rgba(${r},${g},${b},0.16)`;
 }
+function shade(hex, pct) {
+  const c = hex.replace('#', '');
+  const f = (i) => {
+    const v = Math.round(parseInt(c.substr(i, 2), 16) * (100 + pct) / 100);
+    return Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(2)}${f(4)}`;
+}
 function debounce(fn, ms) {
   let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
@@ -632,7 +666,7 @@ let pendingRemote = false;
 function isBusyEditing() {
   // Only defer for edits that a re-render would actually disrupt. Static fields
   // (add-guest, search, event title) survive load() untouched, so they don't block.
-  if (draggingTable || !modal.hidden) return true;
+  if (!modal.hidden) return true;
   const ae = document.activeElement;
   if (!ae) return false;
   if (ae.classList.contains('seat-input') || ae.classList.contains('gname')) return true;
