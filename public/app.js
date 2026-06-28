@@ -156,8 +156,19 @@ function selectGuest(id) {
   selectedGuestId = id;
   document.body.classList.toggle('placing', id != null);
   renderPool();
+  renderBoard();          // refresh "armed" highlight on seats
   // On mobile, jump to the plan so the user can tap a chair right away
   if (id != null && isMobile()) setTab('plan');
+}
+
+// Arm a seated guest for a swap/move, then the next seat click moves/swaps them.
+function armGuest(id) {
+  selectGuest(id);
+  if (id != null) {
+    const g = state.guests.find(x => x.id === id);
+    toast(`${g ? g.name : 'Invité'} sélectionné — cliquez une autre place pour échanger`);
+    if (isMobile()) setTab('plan');
+  }
 }
 
 // Pool as a drop target → unseat
@@ -300,15 +311,31 @@ function buildTable(t) {
       seat.innerHTML = `<span class="seat-name">${esc(firstName(occupant.name))}</span>`;
       seat.draggable = true;
       if (occupant.diet) seat.classList.add('has-diet');
+      if (occupant.id === selectedGuestId) seat.classList.add('armed');
       seat.title = occupant.name
         + (occupant.diet ? ` — 🍽️ ${occupant.diet}` : '')
-        + ' — clic pour modifier · × pour retirer de la table';
+        + ' — clic pour modifier · ⇄ pour échanger · × pour retirer';
       seat.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', occupant.id));
-      // Click the person to edit them; the × button removes them from the table
+      // If a guest is armed → clicking this seat swaps the two; otherwise edit
       seat.addEventListener('click', e => {
-        if (e.target.closest('.seat-x')) return;
-        openGuestEditor(occupant.id);
+        if (e.target.closest('.seat-x') || e.target.closest('.swap-x')) return;
+        if (selectedGuestId != null && selectedGuestId !== occupant.id) placeSelectedOn(t.id, i);
+        else openGuestEditor(occupant.id);
       });
+      // ⇄ : arm this guest, then click another place to swap/move
+      const swapBtn = document.createElement('button');
+      swapBtn.className = 'swap-x';
+      swapBtn.type = 'button';
+      swapBtn.textContent = '⇄';
+      swapBtn.title = 'Échanger : armer cette personne puis cliquer une autre place';
+      swapBtn.draggable = false;
+      swapBtn.addEventListener('mousedown', e => e.stopPropagation());
+      swapBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        armGuest(occupant.id === selectedGuestId ? null : occupant.id);
+      });
+      seat.appendChild(swapBtn);
+      // × : remove from the table
       const xBtn = document.createElement('button');
       xBtn.className = 'seat-x';
       xBtn.type = 'button';
@@ -320,10 +347,10 @@ function buildTable(t) {
       seat.appendChild(xBtn);
     } else {
       seat.innerHTML = `<span class="seat-name">${i + 1}</span>`;
-      seat.title = 'Cliquer pour saisir un nom ici';
+      seat.title = 'Cliquer pour choisir un invité à placer ici';
       seat.addEventListener('click', () => {
         if (selectedGuestId != null) placeSelectedOn(t.id, i);
-        else openSeatInput(seat, t.id, i);
+        else openSeatPopup(t, i);
       });
     }
     bindSeatDrop(seat, t.id, i);
@@ -385,44 +412,41 @@ function bindSeatDrop(seat, tableId, seatIndex) {
   });
 }
 
-// Type a guest's name directly on an empty chair. After Enter, jumps to the
-// next empty chair of the same table so you can go around the table quickly.
-function openSeatInput(seatEl, tableId, seatIndex) {
-  if (seatEl.querySelector('input')) return;
-  const prev = seatEl.innerHTML;
-  seatEl.innerHTML = '';
-  const input = document.createElement('input');
-  input.className = 'seat-input';
-  input.maxLength = 40;
-  seatEl.appendChild(input);
-  input.focus();
+// Popup: choose which unplaced guest to seat on this chair (or create a new one).
+let seatTarget = null; // { tableId, seatIndex }
+function openSeatPopup(t, seatIndex) {
+  seatTarget = { tableId: t.id, seatIndex };
+  $('#seatModalTitle').textContent = `Qui placer à « ${t.name} » ?`;
+  $('#seatSearch').value = '';
+  $('#seatNewName').value = '';
+  renderSeatList('');
+  $('#seatModal').hidden = false;
+  $('#seatSearch').focus();
+}
 
-  let done = false;
-  const cancel = () => { if (!done) { done = true; seatEl.innerHTML = prev; } };
-  const commit = async (chain) => {
-    if (done) return;
-    const name = input.value.trim();
-    if (!name) return cancel();
-    done = true;
-    const group_id = $('#guestGroup').value || null;
-    await api.send('POST', '/api/guests', { name, group_id, table_id: tableId, seat_index: seatIndex });
-    await load();
-    if (chain) {
-      const t = state.tables.find(x => x.id === tableId);
-      const taken = new Set(guestsOfTable(tableId).map(g => g.seat_index));
-      let next = -1;
-      for (let k = seatIndex + 1; k < (t ? t.seats : 0); k++) { if (!taken.has(k)) { next = k; break; } }
-      if (next >= 0) {
-        const el = document.querySelector(`.seat[data-table="${tableId}"][data-seat="${next}"]`);
-        if (el) openSeatInput(el, tableId, next);
-      }
-    }
-  };
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(true); }
-    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+function renderSeatList(term) {
+  const list = $('#seatList');
+  let unplaced = state.guests.filter(g => g.table_id == null);
+  const q = (term || '').toLowerCase();
+  if (q) unplaced = unplaced.filter(g => g.name.toLowerCase().includes(q));
+  unplaced.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+  if (!unplaced.length) {
+    list.innerHTML = `<div class="empty-hint">${q ? 'Aucun invité non placé ne correspond.' : 'Tous les invités sont déjà placés. Créez-en un ci-dessous.'}</div>`;
+    return;
+  }
+  list.innerHTML = unplaced.map(g => chipHTML(g)).join('');
+  list.querySelectorAll('.chip').forEach(el => {
+    el.querySelectorAll('.edit, .del').forEach(b => b.remove()); // simpler in the popup
+    el.addEventListener('click', () => seatFromPopup(+el.dataset.id));
   });
-  input.addEventListener('blur', () => commit(false));
+}
+
+async function seatFromPopup(guestId) {
+  if (!seatTarget) return;
+  const { tableId, seatIndex } = seatTarget;
+  $('#seatModal').hidden = true;
+  await api.send('PATCH', `/api/guests/${guestId}`, { table_id: tableId, seat_index: seatIndex });
+  await load();
 }
 
 async function placeSelectedOn(tableId, seatIndex) {
@@ -801,6 +825,24 @@ $('#restoreFile').addEventListener('change', async e => {
   finally { e.target.value = ''; }
 });
 
+// ---------- Seat assignment popup ----------
+const seatModal = $('#seatModal');
+seatModal.addEventListener('click', e => {
+  if (e.target === seatModal || e.target.hasAttribute('data-close')) seatModal.hidden = true;
+});
+$('#seatSearch').addEventListener('input', e => renderSeatList(e.target.value));
+const seatAddNew = async () => {
+  const name = $('#seatNewName').value.trim();
+  if (!name || !seatTarget) return;
+  const { tableId, seatIndex } = seatTarget;
+  const group_id = $('#guestGroup').value || null;
+  seatModal.hidden = true;
+  await api.send('POST', '/api/guests', { name, group_id, table_id: tableId, seat_index: seatIndex });
+  await load();
+};
+$('#seatNewAdd').addEventListener('click', seatAddNew);
+$('#seatNewName').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); seatAddNew(); } });
+
 // ---------- Reset everything (double check) ----------
 const resetModal = $('#resetModal');
 $('#resetBtn').addEventListener('click', () => {
@@ -859,6 +901,7 @@ document.addEventListener('keydown', e => {
   if (!modal.hidden) modal.hidden = true;
   if (!guestModal.hidden) guestModal.hidden = true;
   if (!resetModal.hidden) resetModal.hidden = true;
+  if (!seatModal.hidden) seatModal.hidden = true;
   if (selectedGuestId != null) selectGuest(null);
   if (selectedTableId != null) selectTable(null);
 });

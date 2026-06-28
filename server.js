@@ -1,7 +1,6 @@
 import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import * as XLSX from 'xlsx';
 import db from './db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -231,10 +230,12 @@ app.post('/api/guests/bulk', (req, res) => {
 });
 
 // ---------- Parse an uploaded Excel/CSV file (returns headers + rows) ----------
-app.post('/api/import/parse', (req, res) => {
+app.post('/api/import/parse', async (req, res) => {
   const { dataBase64 } = req.body;
   if (!dataBase64) return res.status(400).json({ error: 'fichier manquant' });
   try {
+    // Loaded lazily so a problem with the Excel library never breaks the rest of the app.
+    const XLSX = await import('xlsx');
     const buf = Buffer.from(dataBase64, 'base64');
     // XLSX files are ZIP archives (start with "PK"). Anything else is treated as
     // text (CSV/TSV) and decoded as UTF-8 so accented characters survive.

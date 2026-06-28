@@ -149,6 +149,26 @@
     </div>
   </div>
 
+  <!-- Seat assignment popup (choose who to seat here) -->
+  <div id="seatModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h2 id="seatModalTitle">Qui placer ici ?</h2>
+        <button class="modal-x" data-close aria-label="Fermer">×</button>
+      </div>
+      <input id="seatSearch" class="search" placeholder="🔍 Rechercher un invité…" autocomplete="off" />
+      <div id="seatList" class="seat-list"></div>
+      <div class="modal-foot">
+        <label class="fld">Nouvel invité
+          <span class="seat-new-row">
+            <input id="seatNewName" placeholder="Nom…" autocomplete="off" />
+            <button class="btn primary" id="seatNewAdd" type="button">Ajouter ici</button>
+          </span>
+        </label>
+      </div>
+    </div>
+  </div>
+
   <!-- Guest edit modal -->
   <div id="guestModal" class="modal-backdrop" hidden>
     <div class="modal">

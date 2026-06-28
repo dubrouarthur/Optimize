@@ -23,11 +23,13 @@ visualisez la salle en un coup d'œil.
   responsive — elles ne se chevauchent jamais et restent toujours lisibles.
 - **Tables visuelles** rondes ou rectangulaires, avec chaises tout autour, de
   **2 à 100 places** (les chaises et la table s'adaptent automatiquement à la taille).
-- **Trois façons de remplir une chaise** :
-  - **Glisser-déposer** un invité sur une chaise (placer, déplacer, échanger) ;
+- **Plusieurs façons de remplir une chaise** :
+  - **Clic sur une chaise vide** → **popup** listant les invités non placés : on choisit qui
+    asseoir là (avec recherche), ou on crée un nouvel invité directement à cette place ;
   - **Clic-pour-placer** (idéal tactile/mobile) : on clique un invité, puis une chaise ;
-  - **Saisie directe sur la place** : on clique une chaise vide et on tape le nom — l'invité
-    est créé et assis d'un coup, puis le curseur passe à la chaise suivante (saisie en rafale).
+  - **Glisser-déposer** un invité sur une chaise.
+- **Échanger deux invités** : bouton **⇄** sur une chaise → cliquer l'autre place (ou
+  glisser l'un sur l'autre) — les deux personnes permutent.
 - **Édition de table en un clic** : cliquez une table pour ouvrir un panneau clair —
   nom, **nombre de places** (stepper ou saisie directe, jusqu'à 100), forme
   ronde ↔ rectangulaire, **couleur d'arrière-plan** (palette élégante), suppression.
@@ -87,10 +89,10 @@ L'app démarre avec `npm start` et écoute sur le port fourni par `process.env.P
 | Ajouter un invité | Saisir le nom + (groupe) → **Ajouter** |
 | Importer une liste | **⊕ Importer une liste** → coller les noms (un par ligne) |
 | Créer une table | **⊕ Table ronde / rectangle** dans la barre du plan |
-| Saisir un invité sur une place | Cliquer une chaise vide → taper le nom → Entrée (puis chaise suivante) |
+| Choisir qui placer à une chaise | Cliquer une **chaise vide** → **popup** des invités non placés → choisir (ou créer un nouvel invité) |
 | Placer un invité (souris) | Glisser sa pastille depuis « À placer » vers une chaise |
 | Placer un invité (tactile) | Cliquer l'invité (il s'illumine) puis cliquer une chaise |
-| Déplacer / échanger | Glisser un invité d'une chaise à une autre |
+| **Échanger deux invités** | Survoler une chaise → bouton **⇄** → cliquer l'autre place (ou glisser l'un sur l'autre) |
 | Modifier un invité assis | Cliquer la personne sur sa chaise → sa fiche s'ouvre |
 | Retirer un invité d'une table | Survoler sa chaise → bouton **×** (ou le glisser vers « À placer ») |
 | Modifier un invité (régime, etc.) | Survoler sa pastille → **✎** → nom, groupe, régime/allergies, notes |

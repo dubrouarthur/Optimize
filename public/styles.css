@@ -487,6 +487,30 @@ body.placing .seat.empty {
 }
 .fld input:focus, .fld select:focus { border-color: var(--gold); }
 
+/* Seat assignment popup */
+.seat-list { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; }
+.seat-list .chip { cursor: pointer; }
+.seat-list .empty-hint { padding: 14px 4px; }
+.seat-new-row { display: flex; gap: 8px; }
+.seat-new-row input { flex: 1; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-family: inherit; font-size: 14px; outline: none; }
+.seat-new-row input:focus { border-color: var(--gold); }
+.seat-new-row .btn { white-space: nowrap; }
+
+/* Swap mode banner + armed seat */
+body.swapping .seat.empty { animation: pulse 1.3s ease-in-out infinite; border-color: var(--gold); border-style: solid; }
+.seat.armed { box-shadow: 0 0 0 3px var(--gold); z-index: 4; }
+.swap-x { /* the ⇄ button on a filled seat */
+  position: absolute; bottom: -7px; right: -7px;
+  width: 19px; height: 19px; border-radius: 50%;
+  background: var(--gold); color: #fff; border: 1.5px solid #fff;
+  font-size: 11px; line-height: 1; cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transform: scale(.6); transition: opacity .12s, transform .12s;
+  z-index: 5; box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+.seat.filled:hover .swap-x { opacity: 1; transform: scale(1); }
+.swap-x:hover { background: #b8863a; }
+
 /* ---------- Bottom tab bar (mobile navigation) ---------- */
 .tabbar { display: none; }
 .tabbar button {
