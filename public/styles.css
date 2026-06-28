@@ -675,46 +675,60 @@ body.swapping .seat.empty { animation: pulse 1.3s ease-in-out infinite; border-c
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .pd-cover {
-    text-align: center; padding: 90px 0 70px; page-break-after: always;
+    text-align: center; padding: 95px 0 70px; page-break-after: always;
+    border: 2px solid #e9d9b8; outline: none; margin: 6mm; min-height: calc(100vh - 12mm);
+    box-sizing: border-box; display: flex; flex-direction: column; justify-content: center;
   }
   .pd-ring { font-size: 56px; }
   .pd-cover h1 {
-    font-family: 'Cormorant Garamond', serif; font-size: 46px; margin: 18px 0 6px;
+    font-family: 'Cormorant Garamond', serif; font-size: 50px; margin: 18px 0 6px; font-weight: 700;
   }
-  .pd-date { font-size: 18px; color: #8a8378; margin: 0 0 18px; }
-  .pd-sub { font-size: 14px; color: #8a8378; }
+  .pd-date { font-size: 19px; color: #8a8378; margin: 0 0 18px; }
+  .pd-sub { font-size: 14px; color: #8a8378; letter-spacing: .5px; }
 
-  .pd-section { margin: 0 8mm; }
+  .pd-section { margin: 10mm 9mm; }
   .pd-section h2 {
-    font-family: 'Cormorant Garamond', serif; font-size: 28px;
-    border-bottom: 2px solid #e9d9b8; padding-bottom: 6px; margin: 0 0 18px;
+    font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 700;
+    border-bottom: 2px solid #e9d9b8; padding-bottom: 7px; margin: 0 0 16px; color: #2c2a26;
   }
+  .pd-section h2 .pd-count { font-size: 14px; }
   .pd-break { page-break-before: always; }
 
-  .pd-grid { columns: 2; column-gap: 26px; }
-  .pd-table { break-inside: avoid; margin-bottom: 18px; }
+  .pd-grid { columns: 2; column-gap: 28px; }
+  .pd-table { break-inside: avoid; margin-bottom: 16px; padding-bottom: 4px; }
   .pd-table h3 {
-    font-family: 'Cormorant Garamond', serif; font-size: 20px; margin: 0 0 6px;
-    color: #2c2a26;
+    font-family: 'Cormorant Garamond', serif; font-size: 21px; margin: 0 0 7px; color: #b8863a;
+    border-bottom: 1px solid #efe6d2; padding-bottom: 3px;
   }
-  .pd-count { font-size: 12px; color: #c69749; font-family: 'Inter', sans-serif; }
-  .pd-table ol { margin: 0; padding-left: 0; list-style: none; }
-  .pd-table li { font-size: 13px; padding: 2px 0; }
+  .pd-count { font-size: 12px; color: #c69749; font-family: 'Inter', sans-serif; font-weight: 600; }
+  .pd-table ol, .pd-table ul { margin: 0; padding-left: 0; list-style: none; }
+  .pd-table li {
+    font-size: 13.5px; padding: 3px 0; line-height: 1.35;
+    display: flex; align-items: baseline; flex-wrap: wrap;
+  }
   .pd-seat {
     display: inline-block; width: 18px; color: #c69749; font-weight: 600; font-size: 11px;
   }
   .pd-grp { color: #8a8378; font-size: 11px; }
-  .pd-diet { color: #b56b6b; font-size: 11px; }
+  .pd-diet { color: #b03a2e; font-size: 12px; font-weight: 600; }
   .pd-empty { color: #b5ad9f; font-style: italic; }
+
+  /* Coloured dot: red = allergy/régime, green = sans particularité */
+  .diet-dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    margin-right: 6px; flex-shrink: 0; align-self: center; border: 1px solid rgba(0,0,0,.12);
+  }
+  .diet-dot.red { background: #d64545; }
+  .diet-dot.green { background: #5aa56e; }
 
   .pd-index { columns: 2; column-gap: 30px; list-style: none; margin: 0; padding: 0; }
   .pd-index li {
-    font-size: 13px; padding: 3px 0; break-inside: avoid;
+    font-size: 13.5px; padding: 3px 0; break-inside: avoid;
     display: flex; align-items: baseline; gap: 6px;
   }
-  .pd-dots { flex: 1; border-bottom: 1px dotted #d8d0c2; }
+  .pd-dots { flex: 1; border-bottom: 1px dotted #d8d0c2; min-width: 16px; }
 
-  .pd-note { font-size: 12px; color: #8a8378; font-style: italic; margin: -10px 0 16px; }
+  .pd-note { font-size: 12px; color: #8a8378; font-style: italic; margin: -8px 0 16px; }
 
   /* Visual table plan */
   .pd-visual {
@@ -733,47 +747,88 @@ body.swapping .seat.empty { animation: pulse 1.3s ease-in-out infinite; border-c
   /* tables aren't rotated in print, so don't counter-rotate their text either */
   .pd-visual .seat-name, .pd-visual .table-label, .pd-visual .table-sub { transform: none !important; }
 
-  /* ---------- Poster (affiche) ---------- */
-  @page { margin: 0; }
+  /* ---------- Poster (affiche) — one page per table ---------- */
+  @page { margin: 0; size: A4 portrait; }
   body.print-poster { background: #fff; }
-  .poster-doc {
-    color: #3a342a; -webkit-print-color-adjust: exact; print-color-adjust: exact;
-  }
+  .poster-doc { color: #3a342a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  .po-page { page-break-after: always; break-inside: avoid; }
+  .po-page:last-child { page-break-after: auto; }
   .po-frame {
-    min-height: 100vh; padding: 16mm; margin: 0;
+    min-height: 100vh; height: 100vh; padding: 14mm 13mm;
+    display: flex; flex-direction: column; box-sizing: border-box;
     background:
-      radial-gradient(1200px 500px at 50% -5%, #fbf3e3 0%, transparent 60%),
+      radial-gradient(1100px 460px at 50% -6%, #fbf3e3 0%, transparent 60%),
       linear-gradient(180deg, #fffdf8, #faf4e8);
     border: 2px solid #c69749; outline: 1px solid #e9d9b8; outline-offset: 5px;
-    box-sizing: border-box;
   }
-  .po-head { text-align: center; margin-bottom: 12mm; }
+
+  /* Cover page */
+  .po-frame-cover { align-items: center; justify-content: center; text-align: center; }
   .po-flourish { font-size: 30px; color: #c69749; }
-  .po-couple {
-    font-family: 'Great Vibes', cursive; font-weight: 400;
-    font-size: 64px; line-height: 1.1; margin: 4px 0; color: #2c2a26;
-  }
-  .po-date { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: #8a7d63; }
+  .po-couple { font-family: 'Great Vibes', cursive; font-size: 62px; line-height: 1.1; margin: 6px 0; color: #2c2a26; }
+  .po-date { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: #8a7d63; }
   .po-sub {
     font-family: 'Cormorant Garamond', serif; font-size: 16px; letter-spacing: 3px;
-    text-transform: uppercase; color: #b09a6a; margin-top: 6px;
+    text-transform: uppercase; color: #b09a6a; margin-top: 8px;
   }
-  .po-grid { columns: 3; column-gap: 14mm; }
-  .po-table { break-inside: avoid; text-align: center; margin-bottom: 11mm; }
-  .po-tname {
-    font-family: 'Great Vibes', cursive; font-weight: 400;
-    font-size: 30px; color: #b8863a; margin: 0 0 2px;
+  .po-cover-note { margin-top: 22mm; font-family: 'Cormorant Garamond', serif; font-size: 17px; color: #8a7d63; max-width: 120mm; }
+
+  /* Per-table page */
+  .po-table-head { text-align: center; }
+  .po-couple-sm { font-family: 'Great Vibes', cursive; font-size: 26px; color: #c0a35e; line-height: 1; }
+  .po-tname { font-family: 'Great Vibes', cursive; font-size: 52px; color: #b8863a; margin: 2px 0 0; line-height: 1.05; }
+  .po-rule { display: block; width: 70px; height: 1px; margin: 8px auto; background: #d8c39a; }
+  .po-count { font-family: 'Cormorant Garamond', serif; font-size: 16px; color: #8a7d63; }
+
+  .po-facing {
+    flex: 1; display: grid; grid-template-columns: repeat(var(--cols), 1fr);
+    grid-template-rows: 1fr auto 1fr; align-content: center;
+    column-gap: 8mm; row-gap: 6mm; margin: 8mm 4mm 4mm;
   }
-  .po-rule {
-    display: block; width: 46px; height: 1px; margin: 4px auto 8px;
-    background: #d8c39a;
+  .po-seat {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 6px 4px;
+    font-family: 'Cormorant Garamond', serif; font-size: 19px; font-weight: 600; color: #2c2a26;
+    border: 1px solid #ece2cd; border-radius: 12px; background: #fffdf8;
   }
-  .po-names { list-style: none; margin: 0; padding: 0; }
-  .po-names li {
-    font-family: 'Cormorant Garamond', serif; font-size: 17px; line-height: 1.6;
-    color: #3a342a;
+  .po-seatno {
+    display: inline-block; font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600;
+    color: #b09a6a; margin-bottom: 2px;
   }
-  .po-empty { color: #c9bfa6; }
+  .po-free { color: #cbc1ab; font-style: italic; font-weight: 400; }
+  .po-bar {
+    grid-row: 2; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(160deg, #fff, #f3e7cf); border: 1.5px solid #d8b873;
+    font-family: 'Great Vibes', cursive; font-size: 30px; color: #9c7a36;
+    min-height: 24mm; margin: 2mm 0;
+  }
+  .po-bar-round { border-radius: 50% / 38mm; }
+  .po-bar-rect { border-radius: 14px; }
+
+  .diet-dot {
+    display: inline-block; width: 11px; height: 11px; border-radius: 50%;
+    margin-right: 5px; vertical-align: middle; border: 1px solid rgba(0,0,0,.12);
+  }
+  .diet-dot.red { background: #d64545; }
+  .diet-dot.green { background: #5aa56e; }
+
+  .po-legend {
+    text-align: center; font-family: 'Inter', sans-serif; font-size: 11px; color: #9a8e74; margin-top: 2mm;
+  }
+  .po-allergies {
+    margin-top: 6mm; border-top: 1px solid #e9d9b8; padding-top: 4mm; break-inside: avoid;
+  }
+  .po-allergies h3 {
+    font-family: 'Cormorant Garamond', serif; font-size: 18px; color: #a5281c; margin: 0 0 4px;
+  }
+  .po-allergies ul { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 10mm; }
+  .po-allergies li {
+    font-family: 'Inter', sans-serif; font-size: 13px; color: #3a342a; line-height: 1.7; break-inside: avoid;
+  }
+  .po-allergies-none {
+    margin-top: 6mm; font-family: 'Inter', sans-serif; font-size: 12.5px; color: #8a8f7a; text-align: center;
+  }
 }
 
 /* ---------- Scrollbar ---------- */

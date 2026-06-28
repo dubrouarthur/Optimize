@@ -234,8 +234,8 @@ function chipHTML(g) {
   const grp = groupById(g.group_id);
   const color = grp ? grp.color : '#d9d2c5';
   const sel = g.id === selectedGuestId ? ' selected' : '';
-  const diet = g.diet
-    ? `<span class="diet-badge" title="Régime / allergies : ${esc(g.diet)}">🍽️</span>` : '';
+  const diet = hasAllergy(g.diet)
+    ? `<span class="diet-badge" title="Allergie / régime : ${esc(g.diet)}">🍽️</span>` : '';
   return `<div class="chip${sel}" draggable="true" data-id="${g.id}" title="Cliquer puis cliquer une chaise pour placer">
       <span class="dot" style="background:${color}"></span>
       <span class="name">${esc(g.name)}</span>
@@ -540,10 +540,10 @@ function buildTable(t) {
       seat.style.borderColor = grp ? grp.color : 'var(--line)';
       seat.innerHTML = `<span class="seat-name">${esc(firstName(occupant.name))}</span>`;
       seat.draggable = true;
-      if (occupant.diet) seat.classList.add('has-diet');
+      if (hasAllergy(occupant.diet)) seat.classList.add('has-diet');
       if (occupant.id === selectedGuestId) seat.classList.add('armed');
       seat.title = occupant.name
-        + (occupant.diet ? ` — 🍽️ ${occupant.diet}` : '')
+        + (hasAllergy(occupant.diet) ? ` — 🍽️ ${occupant.diet}` : '')
         + ' — clic pour modifier · ⇄ pour échanger · × pour retirer';
       seat.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', occupant.id));
       // If a guest is armed → clicking this seat swaps the two; otherwise edit
@@ -938,30 +938,69 @@ function printAs(mode, build) {
 $('#pdfBtn').addEventListener('click', () => printAs('pdf', buildPrintDoc));
 $('#posterBtn').addEventListener('click', () => printAs('poster', buildPoster));
 
-// ---------- Beautiful poster (names only, by table, wedding script) ----------
+// ---------- Beautiful poster: one page per table, showing who faces whom ----------
 function buildPoster() {
   const title = $('#eventTitle').value || 'Notre mariage';
   const date = $('#eventDate').value || '';
-  const tablesHtml = state.tables.map(t => {
-    const names = guestsOfTable(t.id)
-      .sort((a, b) => a.seat_index - b.seat_index)
-      .map(g => `<li>${esc(g.name)}</li>`).join('');
-    return `<div class="po-table">
-      <h2 class="po-tname">${esc(t.name)}</h2>
-      <span class="po-rule"></span>
-      <ul class="po-names">${names || '<li class="po-empty">—</li>'}</ul>
-    </div>`;
-  }).join('');
-  $('#posterDoc').innerHTML = `
-    <div class="po-frame">
-      <header class="po-head">
+
+  // Cover page
+  let html = `
+    <section class="po-page po-cover-page">
+      <div class="po-frame po-frame-cover">
         <div class="po-flourish">&#10086;</div>
         <h1 class="po-couple">${esc(title)}</h1>
         ${date ? `<div class="po-date">${esc(date)}</div>` : ''}
         <div class="po-sub">~ Plan de table ~</div>
-      </header>
-      <div class="po-grid">${tablesHtml || '<p style="text-align:center">Aucune table.</p>'}</div>
-    </div>`;
+        <div class="po-cover-note">Une page par table — les noms l'un en face de l'autre indiquent qui se fait face.</div>
+      </div>
+    </section>`;
+
+  const tablesWithGuests = state.tables.filter(t => guestsOfTable(t.id).length > 0);
+  for (const t of tablesWithGuests) {
+    const seated = guestsOfTable(t.id);
+    const perSide = Math.ceil(t.seats / 2);
+    const seatCell = (i, row) => {
+      const g = seated.find(x => x.seat_index === i);
+      if (i >= t.seats) return `<div class="po-seat" style="grid-row:${row};grid-column:${(i % perSide) + 1}"></div>`;
+      const col = (i % perSide) + 1;
+      const inner = g
+        ? `<span class="diet-dot ${hasAllergy(g.diet) ? 'red' : 'green'}"></span><span class="po-seatno">${i + 1}</span>${esc(g.name)}`
+        : '<span class="po-free">libre</span>';
+      return `<div class="po-seat" style="grid-row:${row};grid-column:${col}">${inner}</div>`;
+    };
+    // Facing grid: top seat k sits directly above bottom seat (perSide + k),
+    // with the table drawn between them — so vertical neighbours face each other.
+    let cells = '';
+    for (let k = 0; k < perSide; k++) cells += seatCell(k, 1);
+    cells += `<div class="po-bar po-bar-${t.shape}" style="grid-row:2;grid-column:1 / -1">${esc(t.name)}</div>`;
+    for (let k = 0; k < perSide; k++) cells += seatCell(perSide + k, 3);
+
+    const allergic = seated.filter(g => hasAllergy(g.diet))
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+    const allergyBlock = allergic.length
+      ? `<div class="po-allergies">
+           <h3>⚠ Allergies &amp; régimes de cette table</h3>
+           <ul>${allergic.map(g => `<li><span class="diet-dot red"></span>${esc(g.name)} — <b>${esc(g.diet)}</b></li>`).join('')}</ul>
+         </div>`
+      : `<div class="po-allergies po-allergies-none"><span class="diet-dot green"></span> Aucune allergie ni régime particulier à cette table.</div>`;
+
+    html += `
+      <section class="po-page">
+        <div class="po-frame">
+          <div class="po-table-head">
+            <div class="po-couple-sm">${esc(title)}</div>
+            <h2 class="po-tname">${esc(t.name)}</h2>
+            <span class="po-rule"></span>
+            <div class="po-count">${seated.length} invité${seated.length > 1 ? 's' : ''} sur ${t.seats} places</div>
+          </div>
+          <div class="po-facing" style="--cols:${perSide}">${cells}</div>
+          <div class="po-legend">↑ &nbsp;Les noms <b>l'un au-dessus de l'autre</b> se font face&nbsp; ↓ &nbsp;·&nbsp; <span class="diet-dot red"></span> allergie / régime &nbsp; <span class="diet-dot green"></span> sans particularité</div>
+          ${allergyBlock}
+        </div>
+      </section>`;
+  }
+
+  $('#posterDoc').innerHTML = html;
 }
 $('#exportBtn').addEventListener('click', () => { window.location.href = '/api/export.csv'; });
 
@@ -971,15 +1010,16 @@ function buildPrintDoc() {
   const date = $('#eventDate').value || '';
   const placed = state.guests.filter(g => g.table_id != null).length;
 
-  // Per-table guest lists (with régime / allergies when present)
+  // Per-table guest lists — a coloured dot per guest (red = allergy/régime, green = ok),
+  // with the allergy text shown inline so it's readable at a glance.
   let tablesHtml = '';
   for (const t of state.tables) {
     const seated = guestsOfTable(t.id).sort((a, b) => a.seat_index - b.seat_index);
     const items = seated.length
       ? seated.map(g => {
-          const grp = groupById(g.group_id);
-          const diet = g.diet ? ` <span class="pd-diet">🍽️ ${esc(g.diet)}</span>` : '';
-          return `<li><span class="pd-seat">${g.seat_index + 1}</span> ${esc(g.name)}${grp ? ` <span class="pd-grp">· ${esc(grp.name)}</span>` : ''}${diet}</li>`;
+          const allergy = hasAllergy(g.diet);
+          const diet = allergy ? ` <span class="pd-diet">— ${esc(g.diet)}</span>` : '';
+          return `<li><span class="diet-dot ${allergy ? 'red' : 'green'}"></span><span class="pd-seat">${g.seat_index + 1}</span> ${esc(g.name)}${diet}</li>`;
         }).join('')
       : '<li class="pd-empty">— aucune personne placée —</li>';
     tablesHtml += `<div class="pd-table">
@@ -995,15 +1035,20 @@ function buildPrintDoc() {
     .map(g => `<li>${esc(g.name)} <span class="pd-dots"></span> <b>${g.table_id ? esc(tableName(g.table_id)) : '—'}</b></li>`)
     .join('');
 
-  // Dietary summary (helpful for the caterer)
-  const diets = state.guests.filter(g => g.diet);
-  const dietHtml = diets.length
+  // Allergy / dietary summary — ONLY guests with a real restriction (red), per table
+  const allergyByTable = state.tables.map(t => {
+    const list = guestsOfTable(t.id).filter(g => hasAllergy(g.diet))
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+    if (!list.length) return '';
+    return `<div class="pd-table"><h3>${esc(t.name)}</h3><ul>${list
+      .map(g => `<li><span class="diet-dot red"></span>${esc(g.name)} — <b>${esc(g.diet)}</b></li>`).join('')}</ul></div>`;
+  }).join('');
+  const totalAllergies = state.guests.filter(g => hasAllergy(g.diet)).length;
+  const dietHtml = totalAllergies
     ? `<section class="pd-section pd-break">
-         <h2>Régimes &amp; allergies</h2>
-         <ul class="pd-index">${diets
-           .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
-           .map(g => `<li>${esc(g.name)} <span class="pd-dots"></span> <b>${esc(g.diet)}</b></li>`).join('')}
-         </ul>
+         <h2>⚠ Allergies &amp; régimes <span class="pd-count">${totalAllergies}</span></h2>
+         <p class="pd-note">Liste pour le traiteur — uniquement les invités ayant une allergie ou un régime particulier, regroupés par table.</p>
+         <div class="pd-grid">${allergyByTable}</div>
        </section>`
     : '';
 
@@ -1300,6 +1345,11 @@ $('#eventDate').addEventListener('input', saveSettings);
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+// A real dietary restriction / allergy (anything other than empty or "NA").
+function hasAllergy(diet) {
+  const d = (diet || '').trim();
+  return d !== '' && d.toUpperCase() !== 'NA';
 }
 let seatFullNames = false;   // print uses full names so positions are readable
 function firstName(name) {
