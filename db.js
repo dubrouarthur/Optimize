@@ -70,6 +70,15 @@ db.exec(`
     diet      TEXT,                          -- régime / allergies alimentaires
     notes     TEXT                           -- note libre
   );
+
+  CREATE TABLE IF NOT EXISTS decor (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind  TEXT NOT NULL,                     -- 'plante' | 'lavande' | 'maison' | ...
+    x     REAL NOT NULL DEFAULT 80,
+    y     REAL NOT NULL DEFAULT 80,
+    size  REAL NOT NULL DEFAULT 1,
+    label TEXT
+  );
 `);
 
 // Lightweight migrations for databases created by older versions

@@ -254,12 +254,23 @@ h2 {
   background: rgba(255,255,255,0.4);
 }
 .hint { color: var(--muted); font-size: 12.5px; margin-left: auto; font-style: italic; }
+
+/* Decor palette in the toolbar */
+.decor-palette { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.decor-palette-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
+.decor-btn {
+  border: 1px solid transparent; background: none; cursor: pointer;
+  font-size: 19px; line-height: 1; padding: 4px 5px; border-radius: 8px;
+}
+.decor-btn:hover { background: #fff; border-color: var(--gold-soft); }
+
 .board-scroll { position: relative; flex: 1; min-height: 0; display: flex; }
 .board {
   flex: 1; position: relative; overflow: auto;
-  display: flex; flex-wrap: wrap; align-content: flex-start;
-  gap: 22px; padding: 24px;
+  background-image: radial-gradient(var(--line) 1px, transparent 1px);
+  background-size: 28px 28px;
 }
+.canvas { position: relative; min-width: 100%; min-height: 100%; }
 
 .board-empty {
   position: absolute; inset: 0; display: flex; flex-direction: column;
@@ -269,17 +280,47 @@ h2 {
 .board-empty-ring { font-size: 54px; color: var(--gold-soft); }
 .board-empty p { font-size: 14px; line-height: 1.6; }
 
-/* ---------- Table cards ---------- */
+/* ---------- Table cards (freely positioned on the 2D plan) ---------- */
 .table-card {
-  align-self: flex-start;
+  position: absolute;
   background: #fff; border: 1px solid var(--line); border-radius: 18px;
-  padding: 18px; box-shadow: var(--shadow-sm); cursor: pointer;
-  transition: box-shadow .15s, border-color .15s, transform .15s;
+  padding: 18px; box-shadow: var(--shadow-sm); cursor: grab;
+  transition: box-shadow .15s, border-color .15s;
+  touch-action: none; user-select: none;
 }
-.table-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+.table-card:hover { box-shadow: var(--shadow); }
+.table-card.dragging-item { cursor: grabbing; box-shadow: 0 14px 36px rgba(60,50,30,.22); z-index: 20; }
 .table-card.selected {
-  border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft), var(--shadow);
+  border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft), var(--shadow); z-index: 15;
 }
+
+/* ---------- Decor elements ---------- */
+.decor-item {
+  position: absolute; cursor: grab; touch-action: none; user-select: none;
+  display: flex; flex-direction: column; align-items: center; line-height: 1;
+  filter: drop-shadow(0 3px 4px rgba(60,50,30,.18));
+}
+.decor-item.dragging-item { cursor: grabbing; z-index: 25; }
+.decor-item.selected { outline: 2px dashed var(--gold); outline-offset: 6px; border-radius: 10px; }
+.decor-glyph { pointer-events: none; }
+.decor-label {
+  font-size: 12px; color: var(--ink); background: rgba(255,255,255,.8);
+  padding: 1px 7px; border-radius: 8px; margin-top: 2px; white-space: nowrap;
+  filter: none; box-shadow: var(--shadow-sm);
+}
+.decor-tools {
+  position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 3px; background: #fff; border: 1px solid var(--line);
+  border-radius: 10px; padding: 3px; box-shadow: var(--shadow); z-index: 30;
+}
+.decor-tools button {
+  border: none; background: none; cursor: pointer; font-size: 13px;
+  padding: 3px 6px; border-radius: 6px; line-height: 1;
+}
+.decor-tools button:hover { background: var(--gold-soft); }
+
+.insp-guests { display: flex; gap: 8px; align-items: center; }
+.insp-guests .group-select { flex: 1; }
 .table-stage { position: relative; margin: 0 auto; }
 
 .table-disc {
@@ -574,14 +615,14 @@ body.swapping .seat.empty { animation: pulse 1.3s ease-in-out infinite; border-c
   }
   .board-wrap { min-width: 0; }
   .board-scroll { display: block; }
+  /* 2D plan: a bounded, pannable viewport (items have touch-action:none so
+     dragging them never fights the pan-scroll). */
   .board {
-    display: flex; flex-wrap: wrap; justify-content: center;
-    height: auto; overflow: visible; padding: 16px 14px 24px;
+    height: calc(100dvh - 230px); min-height: 320px;
+    overflow: auto; -webkit-overflow-scrolling: touch; padding: 0;
   }
-  .board-toolbar {
-    position: sticky; top: 0; z-index: 5;
-    background: rgba(247,243,236,.96); backdrop-filter: blur(10px);
-  }
+  .board-toolbar { flex-wrap: wrap; gap: 6px 8px; }
+  .decor-palette { width: 100%; order: 3; }
   .hint { display: none; }
 
   /* Table inspector becomes a bottom sheet (above the tab bar) */
@@ -660,6 +701,7 @@ body.swapping .seat.empty { animation: pulse 1.3s ease-in-out infinite; border-c
     display: flex; flex-wrap: wrap; gap: 16px; justify-content: center;
   }
   .pd-visual .table-card {
+    position: static !important; left: auto !important; top: auto !important;
     break-inside: avoid; box-shadow: none; border: 1px solid #e7e0d4;
     cursor: default; transform: none !important;
   }

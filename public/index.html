@@ -64,7 +64,22 @@
       <div class="board-toolbar">
         <button class="btn" data-add="round">⊕ Table ronde</button>
         <button class="btn" data-add="rect">⊕ Table rectangle</button>
-        <span class="hint">Cliquez une table pour la modifier · cliquez une chaise pour y placer un invité</span>
+        <div class="decor-palette" title="Ajouter un élément de décor">
+          <span class="decor-palette-label">Déco :</span>
+          <button class="decor-btn" data-decor="plante" title="Plante">🪴</button>
+          <button class="decor-btn" data-decor="lavande" title="Lavande">🪻</button>
+          <button class="decor-btn" data-decor="fleurs" title="Fleurs">💐</button>
+          <button class="decor-btn" data-decor="arbre" title="Arbre">🌳</button>
+          <button class="decor-btn" data-decor="arche" title="Arche">💒</button>
+          <button class="decor-btn" data-decor="piste" title="Piste de danse">💃</button>
+          <button class="decor-btn" data-decor="buffet" title="Buffet">🍽️</button>
+          <button class="decor-btn" data-decor="gateau" title="Pièce montée">🎂</button>
+          <button class="decor-btn" data-decor="dj" title="DJ / Musique">🎶</button>
+          <button class="decor-btn" data-decor="entree" title="Entrée">🚪</button>
+          <button class="decor-btn" data-decor="maison" title="Maison">🏠</button>
+        </div>
+        <button id="tidyBtn" class="btn ghost" title="Aligner les tables en grille">⊞ Ranger</button>
+        <span class="hint">Glissez les tables et la déco · cliquez une table pour la modifier</span>
       </div>
       <div class="board-scroll">
         <div id="board" class="board"></div>
@@ -90,6 +105,13 @@
           <div class="insp-field insp-field-bg">
             <label>Arrière-plan</label>
             <div class="swatches" id="insColor"></div>
+          </div>
+          <div class="insp-field">
+            <label>Invités</label>
+            <div class="insp-guests">
+              <button id="insClear" class="btn ghost" type="button" title="Renvoyer tous les invités vers « À placer »">Vider la table</button>
+              <select id="insMoveTo" class="group-select" title="Déplacer tous les invités vers une autre table"></select>
+            </div>
           </div>
           <div class="insp-actions">
             <button id="insDelete" class="insp-del" type="button">Supprimer</button>

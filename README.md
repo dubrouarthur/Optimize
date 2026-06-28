@@ -19,8 +19,13 @@ visualisez la salle en un coup d'œil.
   en-têtes et aperçu avant import. (Ou collez simplement une liste de noms.)
 - **Sauvegarde & restauration** : exportez tout le plan (tables + placement + invités) dans un
   fichier `.json` (💾 Sauvegarder), puis rechargez-le plus tard pour tout restaurer à l'identique.
-- **Plan en grille nette** : les tables s'alignent automatiquement dans une grille
-  responsive — elles ne se chevauchent jamais et restent toujours lisibles.
+- **Plan de salle 2D** : disposez librement les tables en les **glissant** (souris ou
+  tactile), et **décorez** le plan (plante 🪴, lavande 🪻, fleurs 💐, arbre 🌳, arche 💒,
+  piste de danse 💃, buffet 🍽️, pièce montée 🎂, DJ 🎶, entrée 🚪, maison 🏠…) —
+  chaque élément est déplaçable, redimensionnable et légendable. Bouton **⊞ Ranger**
+  pour réaligner les tables en grille en un clic.
+- **Actions sur une table** : depuis le panneau d'édition, **Vider la table** (renvoie tout
+  le monde dans « À placer ») ou **déplacer tous ses invités vers une autre table**.
 - **Tables visuelles** rondes ou rectangulaires, avec chaises tout autour, de
   **2 à 100 places** (les chaises et la table s'adaptent automatiquement à la taille).
 - **Plusieurs façons de remplir une chaise** :

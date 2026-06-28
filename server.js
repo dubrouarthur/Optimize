@@ -63,6 +63,7 @@ app.get('/api/state', (req, res) => {
     groups: db.prepare(`SELECT * FROM groups ORDER BY id`).all(),
     tables: db.prepare(`SELECT * FROM tables ORDER BY id`).all(),
     guests: db.prepare(`SELECT * FROM guests ORDER BY name COLLATE NOCASE`).all(),
+    decor: db.prepare(`SELECT * FROM decor ORDER BY id`).all(),
   });
 });
 
@@ -150,6 +151,63 @@ app.delete('/api/tables/:id', (req, res) => {
   db.prepare(`UPDATE guests SET table_id = NULL, seat_index = NULL WHERE table_id = ?`)
     .run(req.params.id);
   db.prepare(`DELETE FROM tables WHERE id = ?`).run(req.params.id);
+  res.json({ ok: true });
+});
+
+// Remove every guest from a table (send them back to "À placer")
+app.post('/api/tables/:id/clear', (req, res) => {
+  const info = db.prepare(
+    `UPDATE guests SET table_id = NULL, seat_index = NULL WHERE table_id = ?`
+  ).run(req.params.id);
+  res.json({ cleared: info.changes });
+});
+
+// Move every guest of one table onto another (swapping/appending by free seat)
+app.post('/api/tables/:id/move-to/:target', (req, res) => {
+  const from = parseInt(req.params.id), to = parseInt(req.params.target);
+  const target = db.prepare(`SELECT * FROM tables WHERE id = ?`).get(to);
+  if (!target) return res.status(404).json({ error: 'table cible introuvable' });
+  const movers = db.prepare(`SELECT * FROM guests WHERE table_id = ? ORDER BY seat_index`).all(from);
+  const taken = new Set(
+    db.prepare(`SELECT seat_index FROM guests WHERE table_id = ?`).all(to).map(r => r.seat_index)
+  );
+  const free = [];
+  for (let i = 0; i < target.seats; i++) if (!taken.has(i)) free.push(i);
+  const assign = db.prepare(`UPDATE guests SET table_id = ?, seat_index = ? WHERE id = ?`);
+  let moved = 0;
+  db.transaction(() => {
+    for (const g of movers) {
+      if (!free.length) break;
+      assign.run(to, free.shift(), g.id); moved++;
+    }
+  })();
+  res.json({ moved, remaining: movers.length - moved });
+});
+
+// ---------- Decor (decorative elements on the floor plan) ----------
+app.post('/api/decor', (req, res) => {
+  const { kind, x, y, size, label } = req.body;
+  const info = db.prepare(
+    `INSERT INTO decor (kind, x, y, size, label) VALUES (?, ?, ?, ?, ?)`
+  ).run(String(kind || 'plante'), x ?? 80, y ?? 80, size ?? 1, label || null);
+  res.json(db.prepare(`SELECT * FROM decor WHERE id = ?`).get(info.lastInsertRowid));
+});
+
+app.patch('/api/decor/:id', (req, res) => {
+  const cur = db.prepare(`SELECT * FROM decor WHERE id = ?`).get(req.params.id);
+  if (!cur) return res.status(404).json({ error: 'introuvable' });
+  const { x, y, size, label } = req.body;
+  db.prepare(`UPDATE decor SET x = ?, y = ?, size = ?, label = ? WHERE id = ?`).run(
+    x ?? cur.x, y ?? cur.y,
+    size != null ? Math.max(0.4, Math.min(4, size)) : cur.size,
+    label !== undefined ? (label || null) : cur.label,
+    req.params.id
+  );
+  res.json(db.prepare(`SELECT * FROM decor WHERE id = ?`).get(req.params.id));
+});
+
+app.delete('/api/decor/:id', (req, res) => {
+  db.prepare(`DELETE FROM decor WHERE id = ?`).run(req.params.id);
   res.json({ ok: true });
 });
 
@@ -309,6 +367,7 @@ app.get('/api/export.json', (req, res) => {
     groups: db.prepare(`SELECT * FROM groups ORDER BY id`).all(),
     tables: db.prepare(`SELECT * FROM tables ORDER BY id`).all(),
     guests: db.prepare(`SELECT * FROM guests ORDER BY id`).all(),
+    decor: db.prepare(`SELECT * FROM decor ORDER BY id`).all(),
   };
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="plan-de-table-sauvegarde.json"');
@@ -321,7 +380,7 @@ app.post('/api/import.json', (req, res) => {
     return res.status(400).json({ error: 'sauvegarde invalide' });
   }
   const tx = db.transaction(() => {
-    db.exec(`DELETE FROM guests; DELETE FROM tables; DELETE FROM groups;`);
+    db.exec(`DELETE FROM guests; DELETE FROM tables; DELETE FROM groups; DELETE FROM decor;`);
     const insG = db.prepare(`INSERT INTO groups (id, name, color) VALUES (?, ?, ?)`);
     for (const g of d.groups || []) insG.run(g.id, g.name, g.color);
     const insT = db.prepare(
@@ -335,6 +394,8 @@ app.post('/api/import.json', (req, res) => {
     for (const g of d.guests)
       insGu.run(g.id, g.name, g.group_id ?? null, g.table_id ?? null, g.seat_index ?? null,
         g.diet ?? null, g.notes ?? null);
+    const insD = db.prepare(`INSERT INTO decor (id, kind, x, y, size, label) VALUES (?, ?, ?, ?, ?, ?)`);
+    for (const e of d.decor || []) insD.run(e.id, e.kind, e.x ?? 0, e.y ?? 0, e.size ?? 1, e.label ?? null);
     if (d.settings) {
       const setS = db.prepare(
         `INSERT INTO settings (key, value) VALUES (?, ?)
@@ -445,8 +506,8 @@ app.post('/api/reset', (req, res) => {
   const palette = ['#e9a23b', '#7c9cbf', '#9d7cbf', '#6fae8f'];
   const defaults = ['Famille mariée', 'Famille marié', 'Amis', 'Collègues'];
   const tx = db.transaction(() => {
-    db.exec(`DELETE FROM guests; DELETE FROM tables; DELETE FROM groups;
-             DELETE FROM sqlite_sequence WHERE name IN ('guests','tables','groups');`);
+    db.exec(`DELETE FROM guests; DELETE FROM tables; DELETE FROM groups; DELETE FROM decor;
+             DELETE FROM sqlite_sequence WHERE name IN ('guests','tables','groups','decor');`);
     const insG = db.prepare(`INSERT INTO groups (name, color) VALUES (?, ?)`);
     defaults.forEach((n, i) => insG.run(n, palette[i]));
     const setS = db.prepare(

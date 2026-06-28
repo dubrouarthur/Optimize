@@ -16,6 +16,7 @@ let searchTerm = '';
 let filterGroup = 'all';        // 'all' | 'none' | <group id>
 let selectedGuestId = null;     // click-to-place selection
 let selectedTableId = null;     // table being edited in the inspector
+let selectedDecorId = null;     // decor element currently selected
 
 const $ = (s, el = document) => el.querySelector(s);
 const groupById = (id) => state.groups.find(g => g.id === id);
@@ -236,14 +237,115 @@ $('#addGroup').addEventListener('click', async () => {
 function renderBoard() {
   const board = $('#board');
   board.innerHTML = '';
-  if (!state.tables.length) {
+  const decor = state.decor || [];
+  if (!state.tables.length && !decor.length) {
     board.innerHTML = `<div class="board-empty">
       <div class="board-empty-ring">◯</div>
-      <p>Aucune table pour l'instant.<br>Ajoutez une table ronde ou rectangle ci-dessus pour commencer.</p>
+      <p>Plan vide.<br>Ajoutez une table ou un élément de décor ci-dessus,<br>puis déplacez-les librement sur le plan.</p>
     </div>`;
     return;
   }
-  for (const t of state.tables) board.appendChild(buildTable(t));
+  // 2D canvas: tables and decor are freely positioned (x/y) and draggable
+  const canvas = document.createElement('div');
+  canvas.className = 'canvas';
+  let maxX = 800, maxY = 560;
+  for (const e of decor) { canvas.appendChild(buildDecor(e)); maxX = Math.max(maxX, e.x + 160); maxY = Math.max(maxY, e.y + 160); }
+  for (const t of state.tables) {
+    const el = buildTable(t);
+    canvas.appendChild(el);
+    maxX = Math.max(maxX, t.x + 320); maxY = Math.max(maxY, t.y + 320);
+  }
+  canvas.style.width = maxX + 'px';
+  canvas.style.height = maxY + 'px';
+  // Click on empty canvas deselects
+  canvas.addEventListener('pointerdown', e => {
+    if (e.target === canvas) { if (selectedTableId != null) selectTable(null); if (selectedDecorId != null) selectDecor(null); }
+  });
+  board.appendChild(canvas);
+}
+
+// Generic pointer-based drag (works for mouse and touch). onDrop receives final x,y.
+function makeDraggable(el, item, applyXY, onDrop, onClick) {
+  el.style.touchAction = 'none';
+  el.addEventListener('pointerdown', e => {
+    if (e.button != null && e.button !== 0) return;
+    if (e.target.closest('.seat, button, .no-drag')) return;
+    e.preventDefault();
+    const startX = e.clientX, startY = e.clientY, ox = item.x, oy = item.y;
+    let moved = false;
+    try { el.setPointerCapture(e.pointerId); } catch {}
+    const move = ev => {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      if (Math.abs(dx) + Math.abs(dy) > 4) { moved = true; el.classList.add('dragging-item'); }
+      item.x = Math.max(0, ox + dx); item.y = Math.max(0, oy + dy);
+      applyXY(item.x, item.y);
+    };
+    const up = async () => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.classList.remove('dragging-item');
+      if (moved) await onDrop(item.x, item.y);
+      else if (onClick) onClick();
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+  });
+}
+
+// ---------- Decor elements ----------
+const DECOR_KINDS = {
+  plante: '🪴', lavande: '🪻', fleurs: '💐', arbre: '🌳', maison: '🏠',
+  piste: '💃', buffet: '🍽️', gateau: '🎂', dj: '🎶', entree: '🚪',
+  bougie: '🕯️', coeur: '❤️', arche: '💒', photo: '📸',
+};
+
+function buildDecor(e) {
+  const el = document.createElement('div');
+  el.className = 'decor-item' + (e.id === selectedDecorId ? ' selected' : '');
+  el.style.left = e.x + 'px';
+  el.style.top = e.y + 'px';
+  el.style.fontSize = (38 * (e.size || 1)) + 'px';
+  el.title = e.label || '';
+  el.innerHTML = `<span class="decor-glyph">${DECOR_KINDS[e.kind] || '⭐'}</span>` +
+    (e.label ? `<span class="decor-label">${esc(e.label)}</span>` : '');
+  if (e.id === selectedDecorId) {
+    const tools = document.createElement('div');
+    tools.className = 'decor-tools no-drag';
+    tools.innerHTML = `
+      <button data-a="small" title="Réduire">−</button>
+      <button data-a="big" title="Agrandir">+</button>
+      <button data-a="label" title="Légende">✎</button>
+      <button data-a="del" title="Supprimer">🗑️</button>`;
+    tools.querySelector('[data-a=small]').onclick = () => updateDecor(e.id, { size: Math.max(0.4, (e.size || 1) - 0.2) });
+    tools.querySelector('[data-a=big]').onclick = () => updateDecor(e.id, { size: Math.min(4, (e.size || 1) + 0.2) });
+    tools.querySelector('[data-a=label]').onclick = () => {
+      const label = prompt('Légende de l\'élément :', e.label || '');
+      if (label != null) updateDecor(e.id, { label });
+    };
+    tools.querySelector('[data-a=del]').onclick = async () => {
+      await api.send('DELETE', `/api/decor/${e.id}`);
+      state.decor = state.decor.filter(d => d.id !== e.id);
+      selectedDecorId = null; renderBoard();
+    };
+    el.appendChild(tools);
+  }
+  makeDraggable(el, e,
+    (x, y) => { el.style.left = x + 'px'; el.style.top = y + 'px'; },
+    async (x, y) => { await api.send('PATCH', `/api/decor/${e.id}`, { x, y }); const d = state.decor.find(d => d.id === e.id); if (d) { d.x = x; d.y = y; } },
+    () => selectDecor(e.id));
+  return el;
+}
+
+async function updateDecor(id, patch) {
+  const d = await api.send('PATCH', `/api/decor/${id}`, patch);
+  const i = state.decor.findIndex(x => x.id === id);
+  if (i >= 0) state.decor[i] = d;
+  renderBoard();
+}
+function selectDecor(id) {
+  selectedDecorId = id;
+  if (id != null) { selectedTableId = null; renderInspector(); }
+  renderBoard();
 }
 
 function buildTable(t) {
@@ -265,11 +367,13 @@ function buildTable(t) {
 
   const card = document.createElement('div');
   card.className = 'table-card' + (t.id === selectedTableId ? ' selected' : '');
-  card.title = 'Cliquer pour modifier la table';
-  card.addEventListener('mousedown', e => {
-    if (e.target.closest('.seat')) return;
-    selectTable(t.id);
-  });
+  card.style.left = (t.x || 0) + 'px';
+  card.style.top = (t.y || 0) + 'px';
+  card.title = 'Glisser pour déplacer · cliquer pour modifier';
+  makeDraggable(card, { x: t.x || 0, y: t.y || 0 },
+    (x, y) => { card.style.left = x + 'px'; card.style.top = y + 'px'; },
+    async (x, y) => { await api.send('PATCH', `/api/tables/${t.id}`, { x, y }); t.x = x; t.y = y; },
+    () => selectTable(t.id));
 
   const stage = document.createElement('div');
   stage.className = 'table-stage';
@@ -478,8 +582,15 @@ const TABLE_BG = [
 
 function selectTable(id) {
   selectedTableId = id;
+  if (id != null) selectedDecorId = null;
   renderBoard();
   renderInspector();
+}
+
+// A tidy non-overlapping default position for the n-th table (grid layout)
+function defaultTablePos(n) {
+  const COLS = 3, CW = 300, CH = 300;
+  return { x: 40 + (n % COLS) * CW, y: 40 + Math.floor(n / COLS) * CH };
 }
 
 function renderInspector() {
@@ -506,6 +617,13 @@ function renderInspector() {
       if (!t2) return;
       updateTable(t2.id, { color: b.dataset.color || null });
     }));
+
+  // "Move all guests to…" target list (other tables only)
+  const others = state.tables.filter(x => x.id !== t.id);
+  $('#insMoveTo').innerHTML = '<option value="">Déplacer vers…</option>' +
+    others.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
+  const seatedHere = guestsOfTable(t.id).length;
+  $('#insClear').disabled = seatedHere === 0;
 }
 
 // Wire inspector controls once
@@ -537,29 +655,63 @@ function setupInspector() {
     selectedTableId = null;
     await load();
   });
+  $('#insClear').addEventListener('click', async () => {
+    const t = sel(); if (!t) return;
+    if (!confirm(`Renvoyer tous les invités de « ${t.name} » vers « À placer » ?`)) return;
+    await api.send('POST', `/api/tables/${t.id}/clear`);
+    await load();
+  });
+  $('#insMoveTo').addEventListener('change', async e => {
+    const t = sel(); const to = e.target.value;
+    if (!t || !to) return;
+    const r = await api.send('POST', `/api/tables/${t.id}/move-to/${to}`);
+    await load();
+    toast(r.remaining ? `${r.moved} déplacé(s), ${r.remaining} sans place` : `${r.moved} invité(s) déplacé(s)`);
+  });
   $('#insDone').addEventListener('click', () => selectTable(null));
 }
 setupInspector();
 
-// Click empty board area to deselect the table
-$('#board').addEventListener('mousedown', e => {
-  if (e.target.id === 'board' && selectedTableId != null) selectTable(null);
+// Click empty board area to deselect
+$('#board').addEventListener('pointerdown', e => {
+  if (e.target.id === 'board') { if (selectedTableId != null) selectTable(null); if (selectedDecorId != null) selectDecor(null); }
 });
 
 // ---------- Add tables ----------
 document.querySelectorAll('[data-add]').forEach(btn => {
   btn.addEventListener('click', async () => {
-    const board = $('#board');
+    const pos = defaultTablePos(state.tables.length);
     const t = await api.send('POST', '/api/tables', {
-      shape: btn.dataset.add,
-      seats: 8,
-      x: board.scrollLeft + 70,
-      y: board.scrollTop + 60,
+      shape: btn.dataset.add, seats: 8, x: pos.x, y: pos.y,
     });
     state.tables.push(t);
     renderStats();
     selectTable(t.id);
   });
+});
+
+// ---------- Add decor ----------
+document.querySelectorAll('[data-decor]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const board = $('#board');
+    const x = (board.scrollLeft || 0) + Math.min(board.clientWidth, 400) / 2;
+    const y = (board.scrollTop || 0) + 80;
+    const e = await api.send('POST', '/api/decor', { kind: btn.dataset.decor, x, y });
+    if (!state.decor) state.decor = [];
+    state.decor.push(e);
+    selectDecor(e.id);
+  });
+});
+
+// ---------- Tidy up tables into a neat grid ----------
+$('#tidyBtn')?.addEventListener('click', async () => {
+  for (let i = 0; i < state.tables.length; i++) {
+    const pos = defaultTablePos(i);
+    state.tables[i].x = pos.x; state.tables[i].y = pos.y;
+    await api.send('PATCH', `/api/tables/${state.tables[i].id}`, pos);
+  }
+  renderBoard();
+  toast('Tables rangées');
 });
 
 // ---------- Add guest ----------
