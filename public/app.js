@@ -112,9 +112,13 @@ function chipHTML(g) {
   const grp = groupById(g.group_id);
   const color = grp ? grp.color : '#d9d2c5';
   const sel = g.id === selectedGuestId ? ' selected' : '';
+  const diet = g.diet
+    ? `<span class="diet-badge" title="Régime / allergies : ${esc(g.diet)}">🍽️</span>` : '';
   return `<div class="chip${sel}" draggable="true" data-id="${g.id}" title="Cliquer puis cliquer une chaise pour placer">
       <span class="dot" style="background:${color}"></span>
       <span class="name">${esc(g.name)}</span>
+      ${diet}
+      <span class="edit" data-edit="${g.id}" title="Modifier">✎</span>
       <span class="del" data-del="${g.id}" title="Supprimer">×</span>
     </div>`;
 }
@@ -127,8 +131,13 @@ function bindChip(el) {
   });
   el.addEventListener('dragend', () => el.classList.remove('dragging'));
   el.addEventListener('click', e => {
-    if (e.target.closest('.del')) return;
+    if (e.target.closest('.del') || e.target.closest('.edit')) return;
     selectGuest(id === selectedGuestId ? null : id);
+  });
+  const edit = el.querySelector('.edit');
+  if (edit) edit.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openGuestEditor(id);
   });
   const del = el.querySelector('.del');
   if (del) del.addEventListener('click', async (e) => {
@@ -286,7 +295,10 @@ function buildTable(t) {
       seat.style.borderColor = grp ? grp.color : 'var(--line)';
       seat.innerHTML = `<span class="seat-name">${esc(firstName(occupant.name))}</span>`;
       seat.draggable = true;
-      seat.title = occupant.name + ' — glisser pour déplacer, clic pour libérer';
+      if (occupant.diet) seat.classList.add('has-diet');
+      seat.title = occupant.name
+        + (occupant.diet ? ` — 🍽️ ${occupant.diet}` : '')
+        + ' — glisser pour déplacer, clic pour libérer';
       seat.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', occupant.id));
       seat.addEventListener('click', () => unseat(occupant.id));
     } else {
@@ -552,14 +564,15 @@ function buildPrintDoc() {
   const date = $('#eventDate').value || '';
   const placed = state.guests.filter(g => g.table_id != null).length;
 
-  // Per-table guest lists
+  // Per-table guest lists (with régime / allergies when present)
   let tablesHtml = '';
   for (const t of state.tables) {
     const seated = guestsOfTable(t.id).sort((a, b) => a.seat_index - b.seat_index);
     const items = seated.length
       ? seated.map(g => {
           const grp = groupById(g.group_id);
-          return `<li><span class="pd-seat">${g.seat_index + 1}</span> ${esc(g.name)}${grp ? ` <span class="pd-grp">· ${esc(grp.name)}</span>` : ''}</li>`;
+          const diet = g.diet ? ` <span class="pd-diet">🍽️ ${esc(g.diet)}</span>` : '';
+          return `<li><span class="pd-seat">${g.seat_index + 1}</span> ${esc(g.name)}${grp ? ` <span class="pd-grp">· ${esc(grp.name)}</span>` : ''}${diet}</li>`;
         }).join('')
       : '<li class="pd-empty">— aucune personne placée —</li>';
     tablesHtml += `<div class="pd-table">
@@ -575,6 +588,18 @@ function buildPrintDoc() {
     .map(g => `<li>${esc(g.name)} <span class="pd-dots"></span> <b>${g.table_id ? esc(tableName(g.table_id)) : '—'}</b></li>`)
     .join('');
 
+  // Dietary summary (helpful for the caterer)
+  const diets = state.guests.filter(g => g.diet);
+  const dietHtml = diets.length
+    ? `<section class="pd-section pd-break">
+         <h2>Régimes &amp; allergies</h2>
+         <ul class="pd-index">${diets
+           .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
+           .map(g => `<li>${esc(g.name)} <span class="pd-dots"></span> <b>${esc(g.diet)}</b></li>`).join('')}
+         </ul>
+       </section>`
+    : '';
+
   $('#printDoc').innerHTML = `
     <section class="pd-cover">
       <div class="pd-ring">💍</div>
@@ -583,25 +608,57 @@ function buildPrintDoc() {
       <p class="pd-sub">Plan de table · ${placed} invité${placed > 1 ? 's' : ''} placé${placed > 1 ? 's' : ''} · ${state.tables.length} table${state.tables.length > 1 ? 's' : ''}</p>
     </section>
     <section class="pd-section">
+      <h2>Plan visuel</h2>
+      <div class="pd-visual" id="pdVisual"></div>
+    </section>
+    <section class="pd-section pd-break">
       <h2>Répartition par table</h2>
       <div class="pd-grid">${tablesHtml || '<p>Aucune table.</p>'}</div>
     </section>
     <section class="pd-section pd-break">
       <h2>Index des invités</h2>
       <ul class="pd-index">${index || '<li>Aucun invité.</li>'}</ul>
-    </section>`;
+    </section>
+    ${dietHtml}`;
+
+  // Render the real table visuals into the print document
+  const vis = $('#pdVisual');
+  for (const t of state.tables) vis.appendChild(buildTable(t));
 }
 
 // ---------- Import modal ----------
 const modal = $('#importModal');
+const guestModal = $('#guestModal');
+
+function readFileBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1]); // strip data: prefix
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+function readFileText(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = reject;
+    r.readAsText(file);
+  });
+}
+
 $('#importBtn').addEventListener('click', () => {
   $('#importText').value = '';
+  $('#impFile').value = '';
+  $('#impMap').hidden = true;
+  parsed = null;
   modal.hidden = false;
-  $('#importText').focus();
 });
-modal.addEventListener('click', e => {
-  if (e.target === modal || e.target.hasAttribute('data-close')) modal.hidden = true;
-});
+[modal, guestModal].forEach(m => m.addEventListener('click', e => {
+  if (e.target === m || e.target.hasAttribute('data-close')) m.hidden = true;
+}));
+
+// Paste-a-list flow
 $('#importConfirm').addEventListener('click', async () => {
   const names = $('#importText').value.split('\n').map(s => s.trim()).filter(Boolean);
   if (!names.length) { modal.hidden = true; return; }
@@ -612,9 +669,156 @@ $('#importConfirm').addEventListener('click', async () => {
   renderAll();
   toast(`${r.added} invité(s) ajouté(s)`);
 });
+
+// ---------- Excel / CSV file import with column mapping ----------
+let parsed = null; // { headers, rows }
+
+const MAP_FIELDS = [
+  { key: 'name',  label: 'Nom *',             hints: ['nom', 'name', 'invit', 'prénom', 'prenom'] },
+  { key: 'group', label: 'Groupe / Table',    hints: ['groupe', 'group', 'table', 'catégorie', 'categorie'] },
+  { key: 'diet',  label: 'Régime / Allergies', hints: ['régime', 'regime', 'allerg', 'diet', 'menu'] },
+  { key: 'notes', label: 'Notes',             hints: ['note', 'remarque', 'comment', 'observ'] },
+];
+
+$('#impFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const dataBase64 = await readFileBase64(file);
+    const r = await fetch('/api/import/parse', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataBase64 }),
+    });
+    parsed = await r.json();
+    if (!r.ok) { toast(parsed.error || 'Fichier illisible'); return; }
+    if (!parsed.headers || !parsed.headers.length) { toast('Fichier vide'); return; }
+    renderMapping();
+    $('#impMap').hidden = false;
+  } catch (err) { toast('Lecture du fichier impossible'); }
+});
+
+$('#impHeader').addEventListener('change', renderMapping);
+
+function colLabels() {
+  const useHeader = $('#impHeader').checked;
+  return parsed.headers.map((h, i) =>
+    useHeader && h ? h : `Colonne ${i + 1}`);
+}
+
+function renderMapping() {
+  const labels = colLabels();
+  const useHeader = $('#impHeader').checked;
+  const guess = (hints) => {
+    if (!useHeader) return -1;
+    for (let i = 0; i < parsed.headers.length; i++) {
+      const h = parsed.headers[i].toLowerCase();
+      if (hints.some(x => h.includes(x))) return i;
+    }
+    return -1;
+  };
+  $('#mapGrid').innerHTML = MAP_FIELDS.map(f => {
+    const sel = f.key === 'name' && guess(f.hints) < 0 ? 0 : guess(f.hints);
+    const opts = [`<option value="-1">— ignorer —</option>`]
+      .concat(labels.map((l, i) => `<option value="${i}"${i === sel ? ' selected' : ''}>${esc(l)}</option>`))
+      .join('');
+    return `<label>${f.label}</label><select data-field="${f.key}">${opts}</select>`;
+  }).join('');
+  $('#mapGrid').querySelectorAll('select').forEach(s => s.addEventListener('change', renderPreview));
+  renderPreview();
+}
+
+function currentMap() {
+  const map = {};
+  $('#mapGrid').querySelectorAll('select').forEach(s => { map[s.dataset.field] = parseInt(s.value); });
+  return map;
+}
+function dataRows() {
+  return $('#impHeader').checked ? parsed.rows : [parsed.headers, ...parsed.rows];
+}
+
+function renderPreview() {
+  const map = currentMap();
+  const rows = dataRows();
+  const cell = (row, idx) => (idx >= 0 ? esc(row[idx] ?? '') : '<span style="color:#bbb">—</span>');
+  const head = MAP_FIELDS.map(f => `<th>${f.label.replace(' *', '')}</th>`).join('');
+  const body = rows.slice(0, 3).map(row =>
+    `<tr>${MAP_FIELDS.map(f => `<td>${cell(row, map[f.key])}</td>`).join('')}</tr>`).join('');
+  const n = rows.filter(r => map.name >= 0 && String(r[map.name] ?? '').trim()).length;
+  $('#impPreview').innerHTML = rows.length
+    ? `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`
+    : '';
+  $('#impCommit').textContent = `Importer ${n} invité${n > 1 ? 's' : ''}`;
+}
+
+$('#impCommit').addEventListener('click', async () => {
+  const map = currentMap();
+  if (map.name == null || map.name < 0) { toast('Choisissez la colonne « Nom »'); return; }
+  const r = await api.send('POST', '/api/import/commit', { rows: dataRows(), map });
+  modal.hidden = true;
+  await load();
+  toast(`${r.added} invité(s) importé(s)`);
+});
+
+// ---------- Backup : save / restore ----------
+$('#saveBtn').addEventListener('click', () => { window.location.href = '/api/export.json'; });
+
+$('#restoreLink').addEventListener('click', () => $('#restoreFile').click());
+$('#restoreFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!confirm('Restaurer cette sauvegarde remplacera TOUT le plan actuel. Continuer ?')) {
+    e.target.value = ''; return;
+  }
+  try {
+    const data = JSON.parse(await readFileText(file));
+    const r = await fetch('/api/import.json', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const res = await r.json();
+    if (!r.ok) { toast(res.error || 'Sauvegarde invalide'); return; }
+    modal.hidden = true;
+    await load();
+    toast('Plan restauré ✓');
+  } catch (err) { toast('Fichier de sauvegarde illisible'); }
+  finally { e.target.value = ''; }
+});
+
+// ---------- Guest editor ----------
+let editingGuestId = null;
+function openGuestEditor(id) {
+  const g = state.guests.find(x => x.id === id);
+  if (!g) return;
+  editingGuestId = id;
+  $('#geName').value = g.name;
+  $('#geGroup').innerHTML = '<option value="">Sans groupe</option>' +
+    state.groups.map(gr => `<option value="${gr.id}"${gr.id === g.group_id ? ' selected' : ''}>${esc(gr.name)}</option>`).join('');
+  $('#geDiet').value = g.diet || '';
+  $('#geNotes').value = g.notes || '';
+  guestModal.hidden = false;
+  $('#geName').focus();
+}
+$('#geSave').addEventListener('click', async () => {
+  if (editingGuestId == null) return;
+  await api.send('PATCH', `/api/guests/${editingGuestId}`, {
+    name: $('#geName').value, group_id: $('#geGroup').value || null,
+    diet: $('#geDiet').value, notes: $('#geNotes').value,
+  });
+  guestModal.hidden = true;
+  await load();
+});
+$('#geDelete').addEventListener('click', async () => {
+  if (editingGuestId == null) return;
+  if (!confirm('Supprimer cet invité ?')) return;
+  await api.send('DELETE', `/api/guests/${editingGuestId}`);
+  guestModal.hidden = true;
+  await load();
+});
+
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!modal.hidden) modal.hidden = true;
+  if (!guestModal.hidden) guestModal.hidden = true;
   if (selectedGuestId != null) selectGuest(null);
   if (selectedTableId != null) selectTable(null);
 });

@@ -12,8 +12,13 @@ visualisez la salle en un coup d'œil.
   **les mêmes changements en direct**. Dès qu'un participant ajoute un invité, place
   quelqu'un ou modifie une table, l'écran de tout le monde se met à jour automatiquement
   (indicateur « ● En direct »). Aucune actualisation nécessaire.
-- **Inscription des invités** en un clic, avec groupes colorés (famille, amis, collègues…).
-- **Import en masse** : collez une liste de noms (un par ligne) pour ajouter tout le monde d'un coup.
+- **Inscription des invités** en un clic, avec groupes colorés (famille, amis, collègues…),
+  **régime / allergies alimentaires** et notes par invité (badge 🍽️ et point rouge sur la chaise).
+- **Import Excel / CSV avec choix des colonnes** : déposez un fichier `.xlsx` ou `.csv`,
+  associez vos colonnes (Nom, Groupe, Régime/Allergies, Notes) — détection automatique des
+  en-têtes et aperçu avant import. (Ou collez simplement une liste de noms.)
+- **Sauvegarde & restauration** : exportez tout le plan (tables + placement + invités) dans un
+  fichier `.json` (💾 Sauvegarder), puis rechargez-le plus tard pour tout restaurer à l'identique.
 - **Plan en grille nette** : les tables s'alignent automatiquement dans une grille
   responsive — elles ne se chevauchent jamais et restent toujours lisibles.
 - **Tables visuelles** rondes ou rectangulaires, avec chaises tout autour, de
@@ -30,8 +35,9 @@ visualisez la salle en un coup d'œil.
   chaque groupe **à la même table** quand c'est possible.
 - **Filtre par groupe** et **recherche** instantanée dans la liste des invités.
 - **Compteurs en direct** : invités placés, tables, places libres.
-- **Export CSV/Excel** (⬇️) et **export PDF** (📄) : un document élégant avec page de garde,
-  répartition par table et index alphabétique des invités → table.
+- **Export CSV/Excel** (⬇️) — avec colonnes Régime/Allergies et Notes.
+- **Export PDF** (📄) soigné : page de garde, **plan visuel des tables**, répartition par table,
+  index alphabétique des invités → table, et **récapitulatif des régimes & allergies** (pour le traiteur).
 - **Responsive** : utilisable sur ordinateur, tablette et mobile.
 - **Sauvegarde automatique** dans une base de données **SQLite locale** (fichier `data.sqlite`).
   Tout reste sur votre machine, fonctionne hors-ligne.
@@ -76,14 +82,17 @@ L'app démarre avec `npm start` et écoute sur le port fourni par `process.env.P
 | Placer un invité (tactile) | Cliquer l'invité (il s'illumine) puis cliquer une chaise |
 | Déplacer / échanger | Glisser un invité d'une chaise à une autre |
 | Libérer une place | Clic sur l'invité assis (ou le glisser vers « À placer ») |
+| Modifier un invité (régime, etc.) | Survoler sa pastille → **✎** → nom, groupe, régime/allergies, notes |
+| Importer un fichier Excel/CSV | **⊕ Importer une liste** → choisir le fichier → associer les colonnes → Importer |
 | Modifier une table | **Cliquer la table** → panneau (nom, places, forme, arrière-plan, suppression) |
 | Régler le nombre de places | Dans le panneau : boutons +/− ou saisie directe (jusqu'à 100) |
 | Changer la couleur de table | Dans le panneau : choisir une pastille d'« Arrière-plan » |
+| Sauvegarder / restaurer | **💾 Sauvegarder** (fichier .json) · restaurer via « Importer » |
 | Exporter | **⬇️ CSV** (Excel) ou **📄 PDF** |
 
 ## Pile technique
 
-- **Backend** : Node.js + Express + `better-sqlite3` (base de données embarquée).
+- **Backend** : Node.js + Express + `better-sqlite3` (base de données embarquée) + `xlsx` (lecture Excel/CSV).
 - **Frontend** : HTML/CSS/JS natif, sans étape de build — léger et rapide.
 - **Temps réel** : Server-Sent Events (`/api/events`) — le serveur pousse un signal à tous
   les navigateurs connectés après chaque modification, et chacun se resynchronise (sans

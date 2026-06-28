@@ -53,7 +53,9 @@ db.exec(`
     name      TEXT NOT NULL,
     group_id  INTEGER REFERENCES groups(id) ON DELETE SET NULL,
     table_id  INTEGER REFERENCES tables(id) ON DELETE SET NULL,
-    seat_index INTEGER
+    seat_index INTEGER,
+    diet      TEXT,                          -- régime / allergies alimentaires
+    notes     TEXT                           -- note libre
   );
 `);
 
@@ -62,6 +64,9 @@ const tableCols = db.prepare(`PRAGMA table_info(tables)`).all().map(c => c.name)
 if (!tableCols.includes('color')) {
   db.exec(`ALTER TABLE tables ADD COLUMN color TEXT`);
 }
+const guestCols = db.prepare(`PRAGMA table_info(guests)`).all().map(c => c.name);
+if (!guestCols.includes('diet'))  db.exec(`ALTER TABLE guests ADD COLUMN diet TEXT`);
+if (!guestCols.includes('notes')) db.exec(`ALTER TABLE guests ADD COLUMN notes TEXT`);
 
 // Seed defaults on first run
 const seeded = db.prepare(`SELECT value FROM settings WHERE key = 'seeded'`).get();

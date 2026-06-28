@@ -1,11 +1,12 @@
 import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import * as XLSX from 'xlsx';
 import db from './db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 app.use(express.static(join(__dirname, 'public')));
 
 // ---------- Live sync (Server-Sent Events) ----------
@@ -155,7 +156,7 @@ app.delete('/api/tables/:id', (req, res) => {
 
 // ---------- Guests ----------
 app.post('/api/guests', (req, res) => {
-  const { name, group_id, table_id, seat_index } = req.body;
+  const { name, group_id, table_id, seat_index, diet, notes } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'nom requis' });
   // Optionally seat the guest immediately (e.g. created by clicking an empty chair)
   let tId = null, sIdx = null;
@@ -167,15 +168,15 @@ app.post('/api/guests', (req, res) => {
       .run(tId, sIdx);
   }
   const info = db.prepare(
-    `INSERT INTO guests (name, group_id, table_id, seat_index) VALUES (?, ?, ?, ?)`
-  ).run(name.trim(), group_id || null, tId, sIdx);
+    `INSERT INTO guests (name, group_id, table_id, seat_index, diet, notes) VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(name.trim(), group_id || null, tId, sIdx, diet || null, notes || null);
   res.json(db.prepare(`SELECT * FROM guests WHERE id = ?`).get(info.lastInsertRowid));
 });
 
 app.patch('/api/guests/:id', (req, res) => {
   const cur = db.prepare(`SELECT * FROM guests WHERE id = ?`).get(req.params.id);
   if (!cur) return res.status(404).json({ error: 'introuvable' });
-  const { name, group_id, table_id, seat_index } = req.body;
+  const { name, group_id, table_id, seat_index, diet, notes } = req.body;
 
   // Seat assignment with swap handling
   if (table_id !== undefined) {
@@ -195,11 +196,13 @@ app.patch('/api/guests/:id', (req, res) => {
       .run(tId, sIdx, cur.id);
   }
 
-  if (name !== undefined || group_id !== undefined) {
-    db.prepare(`UPDATE guests SET name = ?, group_id = ? WHERE id = ?`)
+  if (name !== undefined || group_id !== undefined || diet !== undefined || notes !== undefined) {
+    db.prepare(`UPDATE guests SET name = ?, group_id = ?, diet = ?, notes = ? WHERE id = ?`)
       .run(
         name !== undefined ? name.trim() : cur.name,
         group_id !== undefined ? (group_id || null) : cur.group_id,
+        diet !== undefined ? (diet || null) : cur.diet,
+        notes !== undefined ? (notes || null) : cur.notes,
         cur.id
       );
   }
@@ -225,6 +228,122 @@ app.post('/api/guests/bulk', (req, res) => {
   });
   tx();
   res.json({ added, guests: db.prepare(`SELECT * FROM guests ORDER BY name COLLATE NOCASE`).all() });
+});
+
+// ---------- Parse an uploaded Excel/CSV file (returns headers + rows) ----------
+app.post('/api/import/parse', (req, res) => {
+  const { dataBase64 } = req.body;
+  if (!dataBase64) return res.status(400).json({ error: 'fichier manquant' });
+  try {
+    const buf = Buffer.from(dataBase64, 'base64');
+    // XLSX files are ZIP archives (start with "PK"). Anything else is treated as
+    // text (CSV/TSV) and decoded as UTF-8 so accented characters survive.
+    const isZip = buf.length > 1 && buf[0] === 0x50 && buf[1] === 0x4b;
+    const wb = isZip
+      ? XLSX.read(buf, { type: 'buffer' })
+      : XLSX.read(buf.toString('utf8'), { type: 'string' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    // Array-of-arrays, keeping empty cells so column indexes stay aligned
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: '' });
+    if (!rows.length) return res.json({ headers: [], rows: [] });
+    const width = Math.max(...rows.map(r => r.length));
+    const norm = rows.map(r => {
+      const a = r.map(c => (c == null ? '' : String(c).trim()));
+      while (a.length < width) a.push('');
+      return a;
+    });
+    res.json({
+      headers: norm[0],
+      rows: norm.slice(1, 1001),           // cap to 1000 data rows
+      totalRows: norm.length - 1,
+    });
+  } catch (e) {
+    res.status(400).json({ error: 'fichier illisible (' + e.message + ')' });
+  }
+});
+
+// ---------- Commit a mapped import (creates groups as needed) ----------
+app.post('/api/import/commit', (req, res) => {
+  const { rows, map } = req.body; // map: { name, group, diet, notes } => column index or -1
+  if (!Array.isArray(rows) || !map || map.name == null || map.name < 0) {
+    return res.status(400).json({ error: 'colonne Nom requise' });
+  }
+  const groupByName = new Map(
+    db.prepare(`SELECT id, name FROM groups`).all().map(g => [g.name.toLowerCase(), g.id])
+  );
+  const palette = ['#e9a23b', '#7c9cbf', '#9d7cbf', '#6fae8f', '#d98484', '#c69749', '#8c9b6e'];
+  const insGroup = db.prepare(`INSERT INTO groups (name, color) VALUES (?, ?)`);
+  const insGuest = db.prepare(`INSERT INTO guests (name, group_id, diet, notes) VALUES (?, ?, ?, ?)`);
+  const cell = (row, idx) => (idx != null && idx >= 0 ? String(row[idx] ?? '').trim() : '');
+
+  let added = 0;
+  const tx = db.transaction(() => {
+    for (const row of rows) {
+      const name = cell(row, map.name);
+      if (!name) continue;
+      let groupId = null;
+      const gName = cell(row, map.group);
+      if (gName) {
+        const key = gName.toLowerCase();
+        if (groupByName.has(key)) groupId = groupByName.get(key);
+        else {
+          const color = palette[groupByName.size % palette.length];
+          groupId = insGroup.run(gName, color).lastInsertRowid;
+          groupByName.set(key, groupId);
+        }
+      }
+      insGuest.run(name, groupId, cell(row, map.diet) || null, cell(row, map.notes) || null);
+      added++;
+    }
+  });
+  tx();
+  res.json({ added });
+});
+
+// ---------- Full backup (export / restore the whole plan) ----------
+app.get('/api/export.json', (req, res) => {
+  const dump = {
+    app: 'plan-de-table', version: 1, exportedAt: new Date().toISOString(),
+    settings: getSettings(),
+    groups: db.prepare(`SELECT * FROM groups ORDER BY id`).all(),
+    tables: db.prepare(`SELECT * FROM tables ORDER BY id`).all(),
+    guests: db.prepare(`SELECT * FROM guests ORDER BY id`).all(),
+  };
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="plan-de-table-sauvegarde.json"');
+  res.send(JSON.stringify(dump, null, 2));
+});
+
+app.post('/api/import.json', (req, res) => {
+  const d = req.body;
+  if (!d || !Array.isArray(d.guests) || !Array.isArray(d.tables)) {
+    return res.status(400).json({ error: 'sauvegarde invalide' });
+  }
+  const tx = db.transaction(() => {
+    db.exec(`DELETE FROM guests; DELETE FROM tables; DELETE FROM groups;`);
+    const insG = db.prepare(`INSERT INTO groups (id, name, color) VALUES (?, ?, ?)`);
+    for (const g of d.groups || []) insG.run(g.id, g.name, g.color);
+    const insT = db.prepare(
+      `INSERT INTO tables (id, name, shape, seats, x, y, color) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    );
+    for (const t of d.tables) insT.run(t.id, t.name, t.shape, t.seats, t.x ?? 0, t.y ?? 0, t.color ?? null);
+    const insGu = db.prepare(
+      `INSERT INTO guests (id, name, group_id, table_id, seat_index, diet, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    );
+    for (const g of d.guests)
+      insGu.run(g.id, g.name, g.group_id ?? null, g.table_id ?? null, g.seat_index ?? null,
+        g.diet ?? null, g.notes ?? null);
+    if (d.settings) {
+      const setS = db.prepare(
+        `INSERT INTO settings (key, value) VALUES (?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+      );
+      for (const [k, v] of Object.entries(d.settings)) setS.run(k, String(v ?? ''));
+    }
+  });
+  tx();
+  res.json({ ok: true });
 });
 
 // ---------- Auto-arrange ----------
@@ -294,17 +413,20 @@ app.post('/api/auto-arrange', (req, res) => {
 // ---------- Export plan (CSV) ----------
 app.get('/api/export.csv', (req, res) => {
   const rows = db.prepare(`
-    SELECT g.name AS guest, gr.name AS grp, t.name AS tbl, g.seat_index AS seat
+    SELECT g.name AS guest, gr.name AS grp, t.name AS tbl, g.seat_index AS seat,
+           g.diet AS diet, g.notes AS notes
     FROM guests g
     LEFT JOIN groups gr ON gr.id = g.group_id
     LEFT JOIN tables t  ON t.id = g.table_id
     ORDER BY t.name COLLATE NOCASE, g.seat_index, g.name COLLATE NOCASE
   `).all();
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const lines = ['Invité,Groupe,Table,Place'];
+  const lines = ['Invité,Groupe,Table,Place,Régime / Allergies,Notes'];
   for (const r of rows) {
-    lines.push([r.guest, r.grp || '', r.tbl || 'Non placé', r.seat != null ? r.seat + 1 : '']
-      .map(esc).join(','));
+    lines.push([
+      r.guest, r.grp || '', r.tbl || 'Non placé', r.seat != null ? r.seat + 1 : '',
+      r.diet || '', r.notes || '',
+    ].map(esc).join(','));
   }
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="plan-de-table.csv"');

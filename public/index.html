@@ -23,6 +23,7 @@
     <div class="actions">
       <span id="liveDot" class="live-dot" title="Connexion…">En direct</span>
       <button id="autoBtn" class="btn ghost" title="Remplir les places libres automatiquement">✨ Placer auto</button>
+      <button id="saveBtn" class="btn ghost" title="Sauvegarder tout le plan (fichier .json à recharger plus tard)">💾 Sauvegarder</button>
       <button id="exportBtn" class="btn ghost" title="Télécharger le plan (CSV / Excel)">⬇️ CSV</button>
       <button id="pdfBtn" class="btn ghost" title="Générer un PDF du plan de table">📄 PDF</button>
     </div>
@@ -100,16 +101,59 @@
 
   <!-- Import modal -->
   <div id="importModal" class="modal-backdrop" hidden>
+    <div class="modal modal-lg">
+      <div class="modal-head">
+        <h2>Importer des invités</h2>
+        <button class="modal-x" data-close aria-label="Fermer">×</button>
+      </div>
+
+      <div class="imp-block">
+        <h3>📄 Depuis un fichier Excel ou CSV</h3>
+        <input type="file" id="impFile" accept=".xlsx,.xls,.csv" />
+        <div id="impMap" hidden>
+          <p class="modal-hint">Associez chaque colonne de votre fichier :</p>
+          <div class="map-grid" id="mapGrid"></div>
+          <label class="chk"><input type="checkbox" id="impHeader" checked>
+            La 1ʳᵉ ligne contient les titres de colonnes</label>
+          <div id="impPreview" class="imp-preview"></div>
+          <button class="btn primary" id="impCommit">Importer</button>
+        </div>
+      </div>
+
+      <div class="imp-divider"><span>ou</span></div>
+
+      <div class="imp-block">
+        <h3>📝 Coller une liste de noms</h3>
+        <textarea id="importText" placeholder="Marie Dupont&#10;Jean Martin&#10;Sophie Leroy&#10;…"></textarea>
+        <label class="modal-row">Groupe&nbsp;:
+          <select id="importGroup" class="group-select"></select>
+        </label>
+        <button class="btn primary" id="importConfirm">Ajouter les noms</button>
+      </div>
+
+      <div class="modal-foot">
+        <button class="link-btn" id="restoreLink">↩︎ Restaurer une sauvegarde (.json)…</button>
+        <input type="file" id="restoreFile" accept=".json,application/json" hidden />
+      </div>
+    </div>
+  </div>
+
+  <!-- Guest edit modal -->
+  <div id="guestModal" class="modal-backdrop" hidden>
     <div class="modal">
-      <h2>Importer une liste d'invités</h2>
-      <p class="modal-hint">Un nom par ligne. Vous pourrez les répartir dans les groupes ensuite.</p>
-      <textarea id="importText" placeholder="Marie Dupont&#10;Jean Martin&#10;Sophie Leroy&#10;…"></textarea>
-      <label class="modal-row">Groupe&nbsp;:
-        <select id="importGroup" class="group-select"></select>
-      </label>
+      <div class="modal-head">
+        <h2>Modifier l'invité</h2>
+        <button class="modal-x" data-close aria-label="Fermer">×</button>
+      </div>
+      <label class="fld">Nom<input id="geName" autocomplete="off" /></label>
+      <label class="fld">Groupe<select id="geGroup" class="group-select"></select></label>
+      <label class="fld">Régime / Allergies<input id="geDiet" placeholder="ex. végétarien, sans gluten…" autocomplete="off" /></label>
+      <label class="fld">Notes<input id="geNotes" placeholder="ex. fauteuil, près de la sortie…" autocomplete="off" /></label>
       <div class="modal-actions">
+        <button class="link-btn danger" id="geDelete">Supprimer</button>
+        <span class="spacer"></span>
         <button class="btn ghost" data-close>Annuler</button>
-        <button class="btn primary" id="importConfirm">Ajouter</button>
+        <button class="btn primary" id="geSave">Enregistrer</button>
       </div>
     </div>
   </div>
