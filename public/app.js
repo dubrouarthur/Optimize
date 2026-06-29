@@ -1003,6 +1003,10 @@ function buildPoster() {
   $('#posterDoc').innerHTML = html;
 }
 $('#exportBtn').addEventListener('click', () => { window.location.href = '/api/export.csv'; });
+$('#xlsxBtn').addEventListener('click', () => {
+  if (!navigator.onLine) { toast('L\'export Excel nécessite une connexion'); return; }
+  window.location.href = '/api/export.xlsx';
+});
 
 // ---------- Printable PDF document ----------
 function buildPrintDoc() {

@@ -497,6 +497,112 @@ app.get('/api/export.csv', (req, res) => {
   res.send('﻿' + lines.join('\n'));
 });
 
+// ---------- Export plan (visual Excel .xlsx) ----------
+const hasDiet = (d) => { const s = (d || '').trim(); return s !== '' && s.toUpperCase() !== 'NA'; };
+app.get('/api/export.xlsx', async (req, res) => {
+  try {
+    const ExcelJS = (await import('exceljs')).default;
+    const settings = getSettings();
+    const tables = db.prepare(`SELECT * FROM tables ORDER BY id`).all();
+    const guestsOf = (tid) => db.prepare(`SELECT * FROM guests WHERE table_id = ? ORDER BY seat_index`).all(tid);
+
+    // ---- palette / style helpers ----
+    const GOLD = 'FFC69749', GOLD_SOFT = 'FFF3E7CF', INK = 'FF2C2A26';
+    const RED_FILL = 'FFF8D7DA', RED_TX = 'FFB02A1F';
+    const GREEN_FILL = 'FFE3F1E6', GREEN_TX = 'FF4E8060';
+    const border = { top: { style: 'thin', color: { argb: 'FFE7E0D4' } }, bottom: { style: 'thin', color: { argb: 'FFE7E0D4' } }, left: { style: 'thin', color: { argb: 'FFE7E0D4' } }, right: { style: 'thin', color: { argb: 'FFE7E0D4' } } };
+    const fillOf = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Plan de table';
+
+    // ===== Sheet 1: visual seating plan =====
+    const ws = wb.addWorksheet('Plan de table', { views: [{ state: 'frozen', ySplit: 1 }] });
+    ws.columns = [
+      { header: 'Table', key: 'tbl', width: 16 },
+      { header: 'Place', key: 'seat', width: 7 },
+      { header: 'Invité', key: 'name', width: 30 },
+      { header: 'Allergie / Régime', key: 'diet', width: 26 },
+      { header: 'En face de', key: 'face', width: 28 },
+    ];
+    const head = ws.getRow(1);
+    head.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+    head.alignment = { vertical: 'middle', horizontal: 'center' };
+    head.height = 22;
+    head.eachCell(c => { c.fill = fillOf(GOLD); c.border = border; });
+
+    for (const t of tables) {
+      const seated = guestsOf(t.id);
+      // table title band
+      const titleRow = ws.addRow([`${t.name}  —  ${seated.length}/${t.seats} placés`]);
+      ws.mergeCells(`A${titleRow.number}:E${titleRow.number}`);
+      const tc = titleRow.getCell(1);
+      tc.fill = fillOf(GOLD_SOFT);
+      tc.font = { bold: true, size: 12, color: { argb: INK } };
+      tc.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+      titleRow.height = 20;
+      titleRow.eachCell(c => { c.border = border; });
+
+      const perSide = Math.ceil(t.seats / 2);
+      const bySeat = new Map(seated.map(g => [g.seat_index, g]));
+      const facingSeat = (i) => (i < perSide ? i + perSide : i - perSide);
+      for (let i = 0; i < t.seats; i++) {
+        const g = bySeat.get(i);
+        const faceG = bySeat.get(facingSeat(i));
+        const row = ws.addRow({
+          tbl: '', seat: i + 1,
+          name: g ? g.name : '(libre)',
+          diet: g ? (hasDiet(g.diet) ? g.diet : 'RAS') : '',
+          face: faceG ? faceG.name : (i < t.seats ? '—' : ''),
+        });
+        row.eachCell(c => { c.border = border; c.alignment = { vertical: 'middle' }; });
+        row.getCell('seat').alignment = { horizontal: 'center', vertical: 'middle' };
+        if (!g) row.getCell('name').font = { italic: true, color: { argb: 'FF9A8E74' } };
+        // colour the allergy cell: red if real restriction, green otherwise
+        if (g) {
+          const dc = row.getCell('diet');
+          if (hasDiet(g.diet)) { dc.fill = fillOf(RED_FILL); dc.font = { bold: true, color: { argb: RED_TX } }; }
+          else { dc.fill = fillOf(GREEN_FILL); dc.font = { color: { argb: GREEN_TX } }; }
+        }
+      }
+      ws.addRow([]); // spacer between tables
+    }
+
+    // ===== Sheet 2: allergies only (for the caterer) =====
+    const wa = wb.addWorksheet('Allergies', { views: [{ state: 'frozen', ySplit: 1 }] });
+    wa.columns = [
+      { header: 'Table', key: 'tbl', width: 16 },
+      { header: 'Invité', key: 'name', width: 30 },
+      { header: 'Allergie / Régime', key: 'diet', width: 34 },
+    ];
+    const ah = wa.getRow(1);
+    ah.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+    ah.alignment = { vertical: 'middle', horizontal: 'center' };
+    ah.height = 22;
+    ah.eachCell(c => { c.fill = fillOf('FFB02A1F'); c.border = border; });
+    let any = false;
+    for (const t of tables) {
+      for (const g of guestsOf(t.id)) {
+        if (!hasDiet(g.diet)) continue;
+        any = true;
+        const row = wa.addRow({ tbl: t.name, name: g.name, diet: g.diet });
+        row.eachCell(c => { c.border = border; c.alignment = { vertical: 'middle' }; });
+        row.getCell('diet').fill = fillOf(RED_FILL);
+        row.getCell('diet').font = { bold: true, color: { argb: RED_TX } };
+      }
+    }
+    if (!any) wa.addRow({ tbl: '', name: 'Aucune allergie ni régime particulier', diet: '' });
+
+    const title = (settings.event_title || 'plan-de-table').replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'plan-de-table';
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${title}.xlsx"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (e) {
+    res.status(500).json({ error: 'export Excel impossible (' + e.message + ')' });
+  }
+});
+
 // ---------- Reset all seating ----------
 app.post('/api/unseat-all', (req, res) => {
   db.prepare(`UPDATE guests SET table_id = NULL, seat_index = NULL`).run();

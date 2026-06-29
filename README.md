@@ -48,7 +48,9 @@ visualisez la salle en un coup d'œil.
   chaque groupe **à la même table** quand c'est possible.
 - **Filtre par groupe** et **recherche** instantanée dans la liste des invités.
 - **Compteurs en direct** : invités placés, tables, places libres.
-- **Export CSV/Excel** (⬇️) — avec colonnes Régime/Allergies et Notes.
+- **Export Excel visuel** (📊 `.xlsx`) : un classeur en couleur — feuille **« Plan de table »**
+  (par table : place, invité, **allergie en rouge / sans particularité en vert**, et colonne
+  **« En face de »**) + feuille **« Allergies »** pour le traiteur. Plus un export **CSV** simple.
 - **Export PDF** (📄) soigné : page de garde, **plan visuel « qui est placé où »** (chaque
   invité dessiné à sa place avec son **nom complet** — on voit les voisins et qui se fait face),
   répartition par table,
@@ -116,7 +118,7 @@ L'app démarre avec `npm start` et écoute sur le port fourni par `process.env.P
 | Régler le nombre de places | Dans le panneau : boutons +/− ou saisie directe (jusqu'à 100) |
 | Changer la couleur de table | Dans le panneau : choisir une pastille d'« Arrière-plan » |
 | Sauvegarder / restaurer | **💾 Sauvegarder** (fichier .json) · restaurer via « Importer » |
-| Exporter | **⬇️ CSV** (Excel) ou **📄 PDF** |
+| Exporter | **📊 Excel** (visuel) · **⬇️ CSV** · **📄 PDF** · **🖼️ Affiche** |
 | Tout réinitialiser | **🗑️ Réinitialiser** → cocher la confirmation → confirmer |
 | Naviguer sur mobile | Onglets du bas : **👥 Invités** / **🪑 Plan de table** |
 
