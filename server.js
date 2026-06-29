@@ -516,26 +516,39 @@ app.get('/api/export.xlsx', async (req, res) => {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Plan de table';
 
-    // ===== Sheet 1: visual seating plan =====
+    // ===== Sheet 1: visual seating plan — one row per FACING PAIR =====
+    // (côté A on the left faces côté B on the right, so each guest appears once)
     const ws = wb.addWorksheet('Plan de table', { views: [{ state: 'frozen', ySplit: 1 }] });
     ws.columns = [
-      { header: 'Table', key: 'tbl', width: 16 },
-      { header: 'Place', key: 'seat', width: 7 },
-      { header: 'Invité', key: 'name', width: 30 },
-      { header: 'Allergie / Régime', key: 'diet', width: 26 },
-      { header: 'En face de', key: 'face', width: 28 },
+      { key: 'pa', width: 7 },   // place A
+      { key: 'na', width: 28 },  // invité A
+      { key: 'da', width: 22 },  // allergie A
+      { key: 'vs', width: 9 },   // ⟷ en face
+      { key: 'pb', width: 7 },   // place B
+      { key: 'nb', width: 28 },  // invité B
+      { key: 'db', width: 22 },  // allergie B
     ];
+    const headers = ['Place', 'Invité', 'Allergie / Régime', '↔ en face ↔', 'Place', 'Invité', 'Allergie / Régime'];
     const head = ws.getRow(1);
+    headers.forEach((h, i) => { head.getCell(i + 1).value = h; });
     head.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
-    head.alignment = { vertical: 'middle', horizontal: 'center' };
-    head.height = 22;
+    head.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    head.height = 24;
     head.eachCell(c => { c.fill = fillOf(GOLD); c.border = border; });
+
+    const colorDiet = (cell, g) => {
+      if (!g) return;
+      if (hasDiet(g.diet)) { cell.fill = fillOf(RED_FILL); cell.font = { bold: true, color: { argb: RED_TX } }; }
+      else { cell.fill = fillOf(GREEN_FILL); cell.font = { color: { argb: GREEN_TX } }; }
+    };
+    const dietText = (g) => g ? (hasDiet(g.diet) ? g.diet : 'RAS') : '';
+    const nameText = (g, seatExists) => g ? g.name : (seatExists ? '(libre)' : '');
 
     for (const t of tables) {
       const seated = guestsOf(t.id);
-      // table title band
+      // table title band across all 7 columns
       const titleRow = ws.addRow([`${t.name}  —  ${seated.length}/${t.seats} placés`]);
-      ws.mergeCells(`A${titleRow.number}:E${titleRow.number}`);
+      ws.mergeCells(`A${titleRow.number}:G${titleRow.number}`);
       const tc = titleRow.getCell(1);
       tc.fill = fillOf(GOLD_SOFT);
       tc.font = { bold: true, size: 12, color: { argb: INK } };
@@ -545,25 +558,25 @@ app.get('/api/export.xlsx', async (req, res) => {
 
       const perSide = Math.ceil(t.seats / 2);
       const bySeat = new Map(seated.map(g => [g.seat_index, g]));
-      const facingSeat = (i) => (i < perSide ? i + perSide : i - perSide);
-      for (let i = 0; i < t.seats; i++) {
-        const g = bySeat.get(i);
-        const faceG = bySeat.get(facingSeat(i));
+      for (let k = 0; k < perSide; k++) {
+        const aSeat = k, bSeat = perSide + k;
+        const a = bySeat.get(aSeat);
+        const bExists = bSeat < t.seats;
+        const b = bExists ? bySeat.get(bSeat) : null;
         const row = ws.addRow({
-          tbl: '', seat: i + 1,
-          name: g ? g.name : '(libre)',
-          diet: g ? (hasDiet(g.diet) ? g.diet : 'RAS') : '',
-          face: faceG ? faceG.name : (i < t.seats ? '—' : ''),
+          pa: aSeat + 1, na: nameText(a, true), da: dietText(a),
+          vs: '⟷',
+          pb: bExists ? bSeat + 1 : '', nb: nameText(b, bExists), db: dietText(b),
         });
         row.eachCell(c => { c.border = border; c.alignment = { vertical: 'middle' }; });
-        row.getCell('seat').alignment = { horizontal: 'center', vertical: 'middle' };
-        if (!g) row.getCell('name').font = { italic: true, color: { argb: 'FF9A8E74' } };
-        // colour the allergy cell: red if real restriction, green otherwise
-        if (g) {
-          const dc = row.getCell('diet');
-          if (hasDiet(g.diet)) { dc.fill = fillOf(RED_FILL); dc.font = { bold: true, color: { argb: RED_TX } }; }
-          else { dc.fill = fillOf(GREEN_FILL); dc.font = { color: { argb: GREEN_TX } }; }
-        }
+        row.getCell('pa').alignment = { horizontal: 'center', vertical: 'middle' };
+        row.getCell('pb').alignment = { horizontal: 'center', vertical: 'middle' };
+        row.getCell('vs').alignment = { horizontal: 'center', vertical: 'middle' };
+        row.getCell('vs').font = { color: { argb: 'FFB09A6A' } };
+        if (!a) row.getCell('na').font = { italic: true, color: { argb: 'FF9A8E74' } };
+        if (bExists && !b) row.getCell('nb').font = { italic: true, color: { argb: 'FF9A8E74' } };
+        colorDiet(row.getCell('da'), a);
+        colorDiet(row.getCell('db'), b);
       }
       ws.addRow([]); // spacer between tables
     }
